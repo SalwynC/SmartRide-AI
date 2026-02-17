@@ -1,0 +1,345 @@
+🚀 MASTER FULL PROJECT GENERATION PROMPT (PASTE IN REPLIT AI)
+
+Copy everything below and paste it into Replit AI:
+
+Build a full-stack AI-powered cab booking system called SmartRide AI.
+
+The system must follow a clean modular monolithic architecture suitable for a production-grade student ML project.
+
+PROJECT OBJECTIVE
+
+Create an intelligent cab booking web application that:
+
+Predicts ride demand
+
+Estimates passenger wait time
+
+Predicts travel time
+
+Applies dynamic surge pricing
+
+Predicts ride cancellation probability
+
+Recommends high-demand zones to drivers
+
+Displays pricing fairness index
+
+Estimates carbon emissions per ride
+
+Stores ride data in database
+
+All components must integrate properly.
+
+SYSTEM ARCHITECTURE
+
+Architecture Type: Modular Monolith
+
+Frontend (React)
+⬇
+FastAPI Backend
+⬇
+Machine Learning Models (.pkl)
+⬇
+SQLite Database
+
+TECHNOLOGY STACK
+
+Backend:
+
+Python 3.10
+
+FastAPI
+
+Uvicorn
+
+SQLAlchemy
+
+SQLite
+
+Pydantic
+
+CORS middleware
+
+joblib
+
+ML:
+
+pandas
+
+numpy
+
+sklearn
+
+RandomForestRegressor
+
+LogisticRegression
+
+train_test_split
+
+mean_absolute_error
+
+mean_squared_error
+
+accuracy_score
+
+Frontend:
+
+React
+
+Tailwind CSS
+
+Axios
+
+Chart.js
+
+Leaflet
+
+Framer Motion
+
+PROJECT STRUCTURE
+
+smartride-ai/
+│
+├── backend/
+│ ├── main.py
+│ ├── database.py
+│ ├── schemas.py
+│ ├── models.py
+│ ├── services/
+│ │ ├── pricing_engine.py
+│ │ ├── carbon_service.py
+│ │ ├── zone_service.py
+│ ├── ml/
+│ │ ├── demand_model.pkl
+│ │ ├── wait_model.pkl
+│ │ ├── cancel_model.pkl
+│ ├── train_model.py
+│
+├── frontend/
+│ ├── components/
+│ ├── pages/
+│ ├── services/api.js
+│
+└── README.md
+
+DATABASE REQUIREMENTS
+
+Create SQLite database with SQLAlchemy.
+
+Table: rides
+Fields:
+
+id (primary key)
+
+pickup (string)
+
+drop (string)
+
+distance (float)
+
+wait_time (float)
+
+fare (float)
+
+surge (float)
+
+cancellation_probability (float)
+
+carbon (float)
+
+timestamp (datetime)
+
+Table: zones
+Fields:
+
+zone_id (int)
+
+demand_score (float)
+
+traffic_index (float)
+
+MACHINE LEARNING PIPELINE
+
+Create train_model.py that:
+
+Generates realistic synthetic dataset with features:
+hour
+day_of_week
+traffic_index (0-10)
+weather_score (0-10)
+zone_id (1-10)
+available_drivers
+distance_km
+demand_supply_ratio
+peak_flag (0 or 1)
+
+Targets:
+ride_demand
+wait_time
+cancellation_flag
+
+Train:
+
+RandomForestRegressor for demand
+
+RandomForestRegressor for wait time
+
+LogisticRegression for cancellation
+
+Print:
+MAE
+RMSE
+Accuracy
+
+Save models inside backend/ml folder:
+demand_model.pkl
+wait_model.pkl
+cancel_model.pkl
+
+API ENDPOINTS
+
+Implement these endpoints:
+
+POST /predict-demand
+POST /predict-wait-time
+POST /predict-route
+POST /calculate-fare
+POST /predict-cancellation
+GET /driver-zones
+GET /admin-metrics
+
+Each endpoint must:
+
+Accept JSON
+
+Validate input using Pydantic
+
+Load ML models using joblib
+
+Return JSON response
+
+Handle errors properly
+
+Store ride data in SQLite
+
+DYNAMIC PRICING LOGIC
+
+Base Fare ₹50
+₹12 per km
+
+Add surge:
++30% if demand_supply_ratio > 1.5
++15% if peak_flag = 1
++10% if traffic_index > 7
+
+Return:
+
+surge_multiplier
+
+final_price
+
+CARBON EMISSION LOGIC
+
+carbon = distance_km × 120
+
+FRONTEND REQUIREMENTS
+
+Create React frontend with:
+
+Passenger Dashboard
+Inputs:
+
+Pickup
+
+Drop
+
+Distance
+
+Traffic slider
+
+Peak toggle
+
+Outputs:
+
+Predicted demand
+
+Estimated wait time
+
+Estimated travel time
+
+Surge multiplier
+
+Final fare
+
+Cancellation probability
+
+Carbon emission
+
+Pricing fairness score
+
+Driver Dashboard
+
+Demand heatmap using Leaflet
+
+Top 3 recommended zones
+
+Admin Dashboard
+Charts:
+
+Demand forecast
+
+Wait time trend
+
+Cancellation probability trend
+
+Surge pricing distribution
+
+UI Requirements:
+
+Modern startup style
+
+Card layout
+
+Responsive
+
+Loading spinners
+
+Clean typography
+
+Smooth transitions
+
+Dark mode toggle
+
+Frontend must connect to backend using Axios.
+
+INTEGRATION REQUIREMENTS
+
+Enable CORS
+
+Ensure backend runs without errors
+
+Ensure ML models load correctly
+
+Ensure frontend connects to backend
+
+Ensure SQLite connected properly
+
+Clean modular structure
+
+Generate complete working project code.
+
+AFTER GENERATION
+
+Run train_model.py
+
+Confirm .pkl files exist
+
+Run backend
+
+Test endpoints in /docs
+
+Run frontend
+
+Fix any minor integration errors
+
+END OF PROMPT.
