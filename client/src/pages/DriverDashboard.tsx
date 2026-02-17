@@ -4,11 +4,21 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, TrendingUp, Users, DollarSign } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
 import { MetricCard } from "@/components/MetricCard";
 
+const mockEarningsTrend = [
+  { time: "10:00", value: 18 },
+  { time: "12:00", value: 32 },
+  { time: "14:00", value: 28 },
+  { time: "16:00", value: 46 },
+  { time: "18:00", value: 60 },
+  { time: "20:00", value: 48 },
+];
+
 export default function DriverDashboard() {
-  const { data: zones, isLoading: loadingZones } = useZones();
-  const { data: stats } = useAdminStats();
+  const { data: zones, isLoading: loadingZones, error: zonesError } = useZones();
+  const { data: stats, error: statsError } = useAdminStats();
 
   return (
     <div className="space-y-8">
@@ -16,7 +26,7 @@ export default function DriverDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard 
           title="Today's Earnings" 
-          value={`$${(stats?.revenue ? stats.revenue * 0.2 : 142.50).toFixed(2)}`} 
+          value={`₹${(stats?.revenue ? stats.revenue * 0.2 : 142.50).toFixed(2)}`} 
           icon={<DollarSign className="w-5 h-5" />} 
           trend="up" 
           trendValue="+12%" 
@@ -57,7 +67,13 @@ export default function DriverDashboard() {
           
           <Card className="glass-panel min-h-[400px] p-6 relative overflow-hidden">
             {loadingZones ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Loading Heatmap...</div>
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 h-full">
+                {Array.from({ length: 12 }).map((_, idx) => (
+                  <div key={idx} className="h-24 rounded-xl skeleton" />
+                ))}
+              </div>
+            ) : zonesError ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">Failed to load zones.</div>
             ) : (
               <div className="grid grid-cols-3 md:grid-cols-4 gap-3 h-full">
                 {zones?.map((zone) => {
@@ -74,8 +90,8 @@ export default function DriverDashboard() {
                       className="rounded-xl border border-white/5 relative group cursor-pointer overflow-hidden"
                       style={{
                         backgroundColor: isHot 
-                          ? `rgba(239, 68, 68, ${opacity})` // Red for high demand
-                          : `rgba(59, 130, 246, ${opacity})` // Blue for low demand
+                          ? `rgba(245, 158, 11, ${opacity})`
+                          : `rgba(20, 184, 166, ${opacity})`
                       }}
                     >
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
@@ -94,8 +110,8 @@ export default function DriverDashboard() {
             )}
             
             <div className="absolute bottom-4 right-6 bg-black/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white/70 border border-white/10 flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded-sm opacity-80" /> High Demand
-              <div className="w-3 h-3 bg-blue-500 rounded-sm opacity-50 ml-2" /> Low Demand
+              <div className="w-3 h-3 bg-amber-500 rounded-sm opacity-80" /> High Demand
+              <div className="w-3 h-3 bg-emerald-500 rounded-sm opacity-50 ml-2" /> Low Demand
             </div>
           </Card>
         </div>
@@ -104,10 +120,20 @@ export default function DriverDashboard() {
         <div className="space-y-4">
           <h2 className="text-xl font-bold font-display">Recommended Zones</h2>
           <div className="space-y-3">
-            {zones
-              ?.sort((a, b) => (b.demandScore || 0) - (a.demandScore || 0))
-              .slice(0, 4)
-              .map((zone, idx) => (
+            {loadingZones ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="glass-panel p-4">
+                  <div className="h-4 w-28 skeleton mb-2" />
+                  <div className="h-3 w-40 skeleton" />
+                </div>
+              ))
+            ) : zonesError ? (
+              <div className="text-sm text-muted-foreground">Recommendations unavailable.</div>
+            ) : (
+              zones
+                ?.sort((a, b) => (b.demandScore || 0) - (a.demandScore || 0))
+                .slice(0, 4)
+                .map((zone, idx) => (
                 <motion.div
                   key={zone.id}
                   initial={{ x: 20, opacity: 0 }}
@@ -129,7 +155,7 @@ export default function DriverDashboard() {
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-bold text-green-400">
-                          {zone.trafficIndex! > 7 ? "Heavy Traffic" : "Clear Traffic"}
+                          {(zone.trafficIndex ?? 0) > 7 ? "Heavy Traffic" : "Clear Traffic"}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {zone.trafficIndex}/10 Density
@@ -138,8 +164,28 @@ export default function DriverDashboard() {
                     </CardContent>
                   </Card>
                 </motion.div>
-              ))}
+              ))
+            )}
           </div>
+          <Card className="glass-panel border-white/5">
+            <CardHeader>
+              <CardTitle>Earnings Pulse</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={mockEarningsTrend} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="earningsPulse" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Tooltip contentStyle={{ backgroundColor: "#0b0f14", borderColor: "#1f2a37" }} itemStyle={{ color: "#e5e7eb" }} />
+                  <Area type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={2.5} fill="url(#earningsPulse)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

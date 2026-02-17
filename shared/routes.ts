@@ -1,11 +1,62 @@
-import { z } from 'zod';
-import { 
-  insertUserSchema, 
-  users, 
-  rides, 
-  zones, 
-  bookingRequestSchema 
-} from './schema';
+import { z } from "zod";
+
+const roleSchema = z.enum(["passenger", "driver", "admin"]);
+
+const userSchema = z.object({
+  id: z.number(),
+  username: z.string(),
+  password: z.string(),
+  role: roleSchema,
+  createdAt: z.union([z.string(), z.date()]).optional().nullable(),
+});
+
+const zoneSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  demandScore: z.number().optional().nullable(),
+  trafficIndex: z.number().optional().nullable(),
+  availableDrivers: z.number().optional().nullable(),
+});
+
+const rideStatusSchema = z.enum([
+  "pending",
+  "accepted",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+
+const rideSchema = z.object({
+  id: z.number(),
+  passengerId: z.number(),
+  driverId: z.number().optional().nullable(),
+  pickupAddress: z.string(),
+  dropAddress: z.string(),
+  distanceKm: z.number(),
+  predictedWaitTime: z.number().optional().nullable(),
+  predictedDuration: z.number().optional().nullable(),
+  cancellationProb: z.number().optional().nullable(),
+  carbonEmissions: z.number().optional().nullable(),
+  baseFare: z.number(),
+  surgeMultiplier: z.number().optional().nullable(),
+  finalFare: z.number(),
+  pricingFairnessScore: z.number().optional().nullable(),
+  status: rideStatusSchema.optional().nullable(),
+  createdAt: z.union([z.string(), z.date()]).optional().nullable(),
+});
+
+export const bookingRequestSchema = z.object({
+  pickupAddress: z.string().min(1, "Pickup address is required"),
+  dropAddress: z.string().min(1, "Drop address is required"),
+  distanceKm: z.number().positive("Distance must be positive"),
+  passengerId: z.number(),
+  simulatedTraffic: z.number().min(0).max(10).optional(),
+  simulatedPeak: z.boolean().optional(),
+});
+
+export type BookingRequest = z.infer<typeof bookingRequestSchema>;
 
 // ============================================
 // SHARED ERROR SCHEMAS
@@ -24,6 +75,11 @@ export const errorSchemas = {
 };
 
 // ============================================
+// EXPORTED TYPES
+// ============================================
+export type { BookingRequest };
+
+// ============================================
 // API CONTRACT
 // ============================================
 export const api = {
@@ -34,16 +90,20 @@ export const api = {
       path: '/api/users/login' as const,
       input: z.object({ username: z.string(), password: z.string() }),
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: userSchema,
         401: errorSchemas.validation, // Invalid credentials
       },
     },
     register: {
       method: 'POST' as const,
       path: '/api/users/register' as const,
-      input: insertUserSchema,
+      input: z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+        role: roleSchema.optional(),
+      }),
       responses: {
-        201: z.custom<typeof users.$inferSelect>(),
+        201: userSchema,
         400: errorSchemas.validation,
       },
     },
@@ -51,7 +111,7 @@ export const api = {
         method: 'GET' as const,
         path: '/api/users/:id' as const,
         responses: {
-            200: z.custom<typeof users.$inferSelect>(),
+            200: userSchema,
             404: errorSchemas.notFound
         }
     }
@@ -63,7 +123,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/zones' as const,
       responses: {
-        200: z.array(z.custom<typeof zones.$inferSelect>()),
+        200: z.array(zoneSchema),
       },
     },
   },
@@ -76,19 +136,19 @@ export const api = {
       path: '/api/rides/predict' as const,
       input: bookingRequestSchema,
       responses: {
-        200: z.custom<{
-          distanceKm: number;
-          predictedWaitTime: number;
-          predictedDuration: number;
-          baseFare: number;
-          surgeMultiplier: number;
-          finalFare: number;
-          carbonEmissions: number;
-          cancellationProb: number;
-          fairnessScore: number;
-          trafficIndex: number;
-          isPeak: boolean;
-        }>(),
+        200: z.object({
+          distanceKm: z.number(),
+          predictedWaitTime: z.number(),
+          predictedDuration: z.number(),
+          baseFare: z.number(),
+          surgeMultiplier: z.number(),
+          finalFare: z.number(),
+          carbonEmissions: z.number(),
+          cancellationProb: z.number(),
+          fairnessScore: z.number(),
+          trafficIndex: z.number(),
+          isPeak: z.boolean(),
+        }),
       },
     },
     // 2. Confirm Booking
@@ -97,7 +157,7 @@ export const api = {
       path: '/api/rides' as const,
       input: bookingRequestSchema, // Re-send the request to finalize
       responses: {
-        201: z.custom<typeof rides.$inferSelect>(),
+        201: rideSchema,
         400: errorSchemas.validation,
       },
     },
@@ -107,14 +167,14 @@ export const api = {
       path: '/api/rides' as const,
       input: z.object({ userId: z.coerce.number() }).optional(), // Filter by user
       responses: {
-        200: z.array(z.custom<typeof rides.$inferSelect>()),
+        200: z.array(rideSchema),
       },
     },
     get: {
       method: 'GET' as const,
       path: '/api/rides/:id' as const,
       responses: {
-        200: z.custom<typeof rides.$inferSelect>(),
+        200: rideSchema,
         404: errorSchemas.notFound,
       },
     },
@@ -126,14 +186,14 @@ export const api = {
       method: 'GET' as const,
       path: '/api/admin/stats' as const,
       responses: {
-        200: z.custom<{
-          totalRides: number;
-          activeDrivers: number;
-          avgSurge: number;
-          avgWaitTime: number;
-          revenue: number;
-          zoneStats: typeof zones.$inferSelect[];
-        }>(),
+        200: z.object({
+          totalRides: z.number(),
+          activeDrivers: z.number(),
+          avgSurge: z.number(),
+          avgWaitTime: z.number(),
+          revenue: z.number(),
+          zoneStats: z.array(zoneSchema),
+        }),
       },
     },
   },

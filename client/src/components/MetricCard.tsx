@@ -21,6 +21,7 @@ export function MetricCard({ title, value, icon, trend, trendValue, className, d
       transition={{ duration: 0.4, delay: delay * 0.1 }}
     >
       <Card className={cn("glass-panel overflow-hidden relative", className)}>
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-400 to-amber-400" />
         <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none scale-150">
           {icon}
         </div>

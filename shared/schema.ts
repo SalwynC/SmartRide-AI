@@ -11,13 +11,19 @@ export * from "./models/chat";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(), // In a real app, hash this!
+  email: text("email"),
+  password: text("password").notNull(), // Hashed password
   role: text("role", { enum: ["passenger", "driver", "admin"] }).default("passenger").notNull(),
+  emailVerified: boolean("email_verified").default(false),
+  verificationToken: text("verification_token"),
+  phoneNumber: text("phone_number"),
+  profileImage: text("profile_image"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const zones = pgTable("zones", {
   id: serial("id").primaryKey(),
+  city: text("city").notNull().default("Delhi NCR"), // City name
   name: text("name").notNull(),
   lat: real("lat").notNull(),
   lng: real("lng").notNull(),

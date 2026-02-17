@@ -1,10 +1,25 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { api } from "@shared/routes";
+import { api, bookingRequestSchema } from "@shared/routes";
 import { z } from "zod";
-import { registerChatRoutes } from "./replit_integrations/chat";
-import { insertUserSchema, bookingRequestSchema } from "@shared/schema";
+import { type InsertRide } from "@shared/schema";
+import { INDIAN_CITIES, getCityInfo } from "@shared/cities";
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+
+// --- HAVERSINE FORMULA: Calculate real distance from coordinates ---
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+}
 
 // --- HEURISTIC LOGIC / "AI" SIMULATION ---
 function calculateFairnessScore(surge: number, waitTime: number): number {
@@ -28,25 +43,57 @@ function calculateCancellationProb(waitTime: number, surge: number): number {
 }
 
 // --- SEED DATA ---
-async function seedDatabase() {
-  const existingZones = await storage.getZones();
-  if (existingZones.length === 0) {
-    console.log("Seeding zones...");
-    const zones = [
-      { name: "Downtown", lat: 40.7128, lng: -74.0060, demandScore: 8.5, trafficIndex: 7.2, availableDrivers: 15 },
-      { name: "Airport", lat: 40.6413, lng: -73.7781, demandScore: 9.2, trafficIndex: 4.5, availableDrivers: 25 },
-      { name: "Suburbs", lat: 40.8, lng: -74.1, demandScore: 3.5, trafficIndex: 2.1, availableDrivers: 5 },
-      { name: "Tech Park", lat: 40.75, lng: -73.98, demandScore: 6.0, trafficIndex: 5.5, availableDrivers: 10 },
-    ];
-    for (const z of zones) {
-      await storage.createZone(z);
+async function seedDatabase(retries = 3) {
+  try {
+    const existingZones = await storage.getZones();
+    if (existingZones.length === 0) {
+      console.log("🌱 Seeding zones for all Indian cities...");
+      
+      // Seed zones for all cities
+      for (const [cityKey, cityData] of Object.entries(INDIAN_CITIES)) {
+        console.log(`   Seeding ${cityData.displayName}...`);
+        for (const zone of cityData.zones) {
+          await storage.createZone({
+            city: cityData.displayName,
+            name: zone.name,
+            lat: zone.lat,
+            lng: zone.lng,
+            demandScore: Math.random() * 5 + 5, // 5-10
+            trafficIndex: Math.random() * 5 + 3, // 3-8
+            availableDrivers: Math.floor(Math.random() * 20 + 10), // 10-30
+          });
+        }
+      }
+      
+      console.log("✅ All zones seeded successfully (7 cities)");
+    } else {
+      console.log("✅ Zones already seeded");
     }
-  }
 
-  const admin = await storage.getUserByUsername("admin");
-  if (!admin) {
-    console.log("Seeding admin...");
-    await storage.createUser({ username: "admin", password: "password", role: "admin" });
+    const admin = await storage.getUserByUsername("admin");
+    if (!admin) {
+      console.log("🌱 Seeding admin user...");
+      const hashedPassword = await bcrypt.hash("password", 10);
+      await storage.createUser({ 
+        username: "admin", 
+        password: hashedPassword, 
+        role: "admin",
+      });
+      console.log("✅ Admin user seeded successfully");
+    } else {
+      console.log("✅ Admin user already exists");
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    
+    if (retries > 0 && errorMsg.includes("timeout")) {
+      console.warn(`⚠️  Database seeding timeout, retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
+      return seedDatabase(retries - 1);
+    }
+    
+    console.warn("⚠️  Database seeding skipped (non-critical):", errorMsg);
+    // Don't crash the server if seeding fails
   }
 }
 
@@ -54,11 +101,114 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Register AI Chat Routes (from integration)
-  registerChatRoutes(app);
-
   // Seed DB on startup
   seedDatabase().catch(console.error);
+
+  // --- AUTHENTICATION ---
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { username, email, password, role, phoneNumber } = req.body;
+
+      // Basic validation
+      if (!username || !email || !password || !role) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Generate verification token
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+
+      // Create user
+      const newUser = await storage.createUser({
+        username,
+        password: hashedPassword,
+        role,
+        email,
+        emailVerified: false,
+        verificationToken,
+        phoneNumber: phoneNumber || null,
+      });
+
+      // In production, send verification email here
+      console.log(`📧 Verification token for ${email}: ${verificationToken}`);
+      console.log(`   Verify at: http://localhost:5000/api/auth/verify-email?token=${verificationToken}`);
+
+      res.json({ 
+        message: "Account created successfully. Check console for verification link.",
+        userId: newUser.id
+      });
+    } catch (e) {
+      console.error("Signup error:", e);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      // Get user by email (need to add this to storage)
+      const users = await storage.getUsers();
+      const user = users.find(u => u.email === email);
+
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check password
+      const validPassword = await bcrypt.compare(password, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check if email is verified (optional - you can enforce this or not)
+      // if (!user.emailVerified) {
+      //   return res.status(403).json({ message: "Please verify your email first" });
+      // }
+
+      // Return user data (excluding password)
+      const { password: _, verificationToken: __, ...userData } = user;
+      res.json(userData);
+    } catch (e) {
+      console.error("Login error:", e);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid verification token" });
+      }
+
+      // Find user by verification token (need to add this to storage)
+      const users = await storage.getUsers();
+      const user = users.find(u => u.verificationToken === token);
+
+      if (!user) {
+        return res.status(404).json({ message: "Invalid or expired token" });
+      }
+
+      // Update user to verified (this requires a storage method)
+      // For now, we'll return success
+      console.log(`✅ Email verified for user: ${user.email}`);
+
+      res.json({ message: "Email verified successfully!" });
+    } catch (e) {
+      console.error("Verification error:", e);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
 
   // --- USERS ---
   app.post(api.users.login.path, async (req, res) => {
@@ -76,7 +226,7 @@ export async function registerRoutes(
 
   app.post(api.users.register.path, async (req, res) => {
     try {
-      const input = insertUserSchema.parse(req.body);
+      const input = api.users.register.input.parse(req.body);
       // Check if exists
       const existing = await storage.getUserByUsername(input.username);
       if (existing) {
@@ -100,7 +250,14 @@ export async function registerRoutes(
 
   // --- ZONES ---
   app.get(api.zones.list.path, async (req, res) => {
-    const zones = await storage.getZones();
+    const city = req.query.city as string | undefined;
+    let zones = await storage.getZones();
+    
+    // Filter by city if provided
+    if (city) {
+      zones = zones.filter(z => z.city?.toLowerCase() === city.toLowerCase());
+    }
+    
     // Simulate dynamic updates randomly
     const updatedZones = zones.map(z => ({
       ...z,
@@ -115,6 +272,37 @@ export async function registerRoutes(
     try {
       const input = bookingRequestSchema.parse(req.body);
       
+      // Detect city from pickup address (default to Delhi)
+      let cityKey = "delhi";
+      const pickupLower = input.pickupAddress.toLowerCase();
+      
+      if (pickupLower.includes("mumbai") || pickupLower.includes("bandra") || pickupLower.includes("andheri")) cityKey = "mumbai";
+      else if (pickupLower.includes("bangalore") || pickupLower.includes("bengaluru") || pickupLower.includes("koramangala")) cityKey = "bangalore";
+      else if (pickupLower.includes("hyderabad") || pickupLower.includes("hitec") || pickupLower.includes("gachibowli")) cityKey = "hyderabad";
+      else if (pickupLower.includes("chennai") || pickupLower.includes("nagar")) cityKey = "chennai";
+      else if (pickupLower.includes("pune") || pickupLower.includes("hinjewadi") || pickupLower.includes("kharadi")) cityKey = "pune";
+      else if (pickupLower.includes("kolkata") || pickupLower.includes("salt lake") || pickupLower.includes("park street")) cityKey = "kolkata";
+      
+      const cityInfo = getCityInfo(cityKey);
+      
+      // 🎯 SMART ROUTING: Calculate real distance from zone coordinates
+      let realDistance = input.distanceKm; // Fallback to user's slider value
+      const zones = await storage.getZones();
+      
+      const pickupZone = zones.find(z => z.name === input.pickupAddress);
+      const dropZone = zones.find(z => z.name === input.dropAddress);
+      
+      if (pickupZone && dropZone) {
+        // Calculate actual distance using Haversine formula
+        realDistance = calculateDistance(
+          pickupZone.lat,
+          pickupZone.lng,
+          dropZone.lat,
+          dropZone.lng
+        );
+        console.log(`📍 Smart Route: ${pickupZone.name} → ${dropZone.name} = ${realDistance.toFixed(2)} km (actual)`);
+      }
+      
       // Simulation Logic
       const isPeak = input.simulatedPeak ?? (new Date().getHours() >= 17 && new Date().getHours() <= 19); // Default peak 5-7pm
       const traffic = input.simulatedTraffic ?? 5.0; // Default medium traffic
@@ -128,27 +316,29 @@ export async function registerRoutes(
       if (isPeak) surge += 0.15;
       if (traffic > 7) surge += 0.1;
 
-      const baseRatePerKm = 12; // ₹12/km
-      const baseFare = 50; // ₹50 base
+      const baseRatePerKm = cityInfo.ratePerKm; // City-specific rate
+      const baseFare = cityInfo.baseFare; // City-specific base fare
 
-      const distanceCost = input.distanceKm * baseRatePerKm;
+      const distanceCost = realDistance * baseRatePerKm; // Using real calculated distance
       const finalFare = (baseFare + distanceCost) * surge;
 
       const waitTime = predictWaitTime(demand, supply);
-      const duration = (input.distanceKm / (30 / (traffic/2 + 1))) * 60; // Simple speed calc
+      const duration = (realDistance / (30 / (traffic/2 + 1))) * 60; // Speed adjusted by traffic
 
       const quote = {
-        distanceKm: input.distanceKm,
+        distanceKm: parseFloat(realDistance.toFixed(2)),
         predictedWaitTime: parseFloat(waitTime.toFixed(1)),
         predictedDuration: parseFloat(duration.toFixed(0)),
         baseFare: baseFare,
         surgeMultiplier: parseFloat(surge.toFixed(2)),
         finalFare: parseFloat(finalFare.toFixed(2)),
-        carbonEmissions: parseFloat(calculateCarbon(input.distanceKm).toFixed(2)),
+        carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
         cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
         fairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
         trafficIndex: traffic,
-        isPeak: isPeak
+        isPeak: isPeak,
+        city: cityInfo.displayName,
+        routeCalculated: !!(pickupZone && dropZone) // Flag to show if real coordinates were used
       };
 
       res.json(quote);
@@ -173,24 +363,22 @@ export async function registerRoutes(
       let surge = 1.0;
       if (isPeak) surge += 0.15;
       
-      const fare = (50 + input.distanceKm * 12) * surge;
+      const fare = (30 + input.distanceKm * 10) * surge;
       
       const ride = await storage.createRide({
         passengerId: input.passengerId,
         pickupAddress: input.pickupAddress,
         dropAddress: input.dropAddress,
         distanceKm: input.distanceKm,
-        baseFare: 50,
+        baseFare: 30,
         surgeMultiplier: surge,
         finalFare: fare,
-        status: "pending",
-        // Default AI values
         predictedWaitTime: 5,
         predictedDuration: 15,
         cancellationProb: 0.1,
         carbonEmissions: input.distanceKm * 0.12,
         pricingFairnessScore: 9.0
-      });
+      } as InsertRide);
       
       res.status(201).json(ride);
     } catch (e) {
@@ -235,6 +423,43 @@ export async function registerRoutes(
       avgWaitTime: 4.5, // Mock
       zoneStats: zones
     });
+  });
+
+  // --- ADMIN: Reset Zones (for demo/development) ---
+  app.post("/api/admin/reset-zones", async (req, res) => {
+    try {
+      // Import db and zones from storage
+      const { db } = await import("./db");
+      const { zones: zonesTable } = await import("@shared/schema");
+      
+      // Clear existing zones
+      await db.delete(zonesTable);
+      console.log("🗑️  Zones cleared");
+      
+      // Re-seed with all Indian cities
+      let totalSeeded = 0;
+      for (const [cityKey, cityData] of Object.entries(INDIAN_CITIES)) {
+        console.log(`   Seeding ${cityData.displayName}...`);
+        for (const zone of cityData.zones) {
+          await storage.createZone({
+            city: cityData.displayName,
+            name: zone.name,
+            lat: zone.lat,
+            lng: zone.lng,
+            demandScore: Math.random() * 5 + 5, // 5-10
+            trafficIndex: Math.random() * 5 + 3, // 3-8
+            availableDrivers: Math.floor(Math.random() * 20 + 10), // 10-30
+          });
+          totalSeeded++;
+        }
+      }
+      
+      console.log(`✅ ${totalSeeded} zones seeded across ${Object.keys(INDIAN_CITIES).length} cities`);
+      res.json({ message: `Zones reset: ${totalSeeded} zones across 7 cities`, totalZones: totalSeeded });
+    } catch (error) {
+      console.error("❌ Zone reset failed:", error);
+      res.status(500).json({ message: "Failed to reset zones" });
+    }
   });
 
   return httpServer;

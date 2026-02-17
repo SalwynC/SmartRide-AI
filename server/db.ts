@@ -5,10 +5,33 @@ import * as schema from "@shared/schema";
 const { Pool } = pg;
 
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+  console.error(
+    "❌ DATABASE_URL is not set. Please configure it in your .env file.",
   );
+  process.exit(1);
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+let pool: pg.Pool;
+let db: any;
+
+try {
+  pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 20000, // Increased from 10s to 20s for remote Neon DB
+  });
+
+  pool.on("error", (err) => {
+    console.error("❌ Unexpected error on idle client", err);
+    process.exit(-1);
+  });
+
+  db = drizzle(pool, { schema });
+  console.log("✅ Database connection pool initialized successfully");
+} catch (error) {
+  console.error("❌ Failed to initialize database connection:", error);
+  process.exit(1);
+}
+
+export { pool, db };

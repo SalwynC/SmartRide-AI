@@ -15,12 +15,12 @@ import {
   type Message
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
-import { chatStorage as baseChatStorage } from "./replit_integrations/chat/storage";
 
 export interface IStorage {
   // Users
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   
   // Rides
@@ -47,6 +47,10 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
+  }
+
+  async getUsers(): Promise<User[]> {
+    return db.select().from(users);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -112,6 +116,3 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
-
-// Re-export chat storage for the integration to use, but extended if needed or just aliased
-export const chatStorage = baseChatStorage;

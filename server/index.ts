@@ -1,7 +1,26 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+
+// Add global error handlers upfront
+process.on('uncaughtException', (error) => {
+  if (error.message.includes('dependency optimization') || error.message.includes('non-absolute path')) {
+    console.warn("⚠️  Vite dependency optimization error (server continues)");
+  } else {
+    console.error("Uncaught Exception:", error);
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (message.includes('dependency optimization') || message.includes('non-absolute path')) {
+    console.warn("⚠️  Vite dependency optimization error (server continues)");
+  } else {
+    console.error("Unhandled Rejection:", reason);
+  }
+});
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,44 +79,61 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(httpServer, app);
+  try {
+    await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+      console.error("Internal Server Error:", err);
 
-    if (res.headersSent) {
-      return next(err);
+      if (res.headersSent) {
+        return next(err);
+      }
+
+      return res.status(status).json({ message });
+    });
+
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    if (process.env.NODE_ENV === "production") {
+      serveStatic(app);
+    } else {
+      try {
+        const { setupVite } = await import("./vite");
+        // Use Promise.race to timeout Vite setup after 5 seconds
+        await Promise.race([
+          setupVite(httpServer, app),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Vite setup timeout")), 5000))
+        ]);
+      } catch (error) {
+        console.warn("⚠️  Vite setup failed or timed out, using static serving");
+        serveStatic(app);
+      }
     }
 
-    return res.status(status).json({ message });
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
-  }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
+    // ALWAYS serve the app on the port specified in the environment variable PORT
+    // Other ports are firewalled. Default to 5000 if not specified.
+    // this serves both the API and the client.
+    // It is the only port that is not firewalled.
+    const port = parseInt(process.env.PORT || "5000", 10);
+    const listenOptions: any = {
       port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
+      host: "localhost",
+    };
+
+    // Use reusePort on non-Windows systems
+    if (process.platform !== "win32") {
+      listenOptions.reusePort = true;
+    }
+
+    httpServer.listen(listenOptions, () => {
       log(`serving on port ${port}`);
-    },
-  );
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 })();
