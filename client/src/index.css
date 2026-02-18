@@ -42,47 +42,47 @@
 
 /* LIGHT MODE */
 .light {
-  --background: 0 0% 99%;  /* Almost white, very light */
-  --foreground: 220 20% 6%;  /* Almost black for text */
+  --background: 0 0% 98%;  /* Soft white background */
+  --foreground: 222 47% 11%;  /* Rich dark text */
   
   --card: 0 0% 100%;  /* Pure white cards */
-  --card-foreground: 220 20% 6%;  /* Dark text on cards */
+  --card-foreground: 222 47% 11%;  /* Dark text on cards */
   
   --popover: 0 0% 100%;
-  --popover-foreground: 220 20% 6%;
+  --popover-foreground: 222 47% 11%;
   
-  --primary: 174 78% 42%;  /* Slightly darker primary */
+  --primary: 174 78% 40%;  /* Vibrant teal primary */
   --primary-foreground: 0 0% 100%;
   
-  --secondary: 210 40% 90%;  /* Better contrast secondary */
-  --secondary-foreground: 220 20% 6%;
+  --secondary: 210 40% 96%;  /* Light gray secondary */
+  --secondary-foreground: 222 47% 11%;
   
-  --muted: 210 30% 92%;
-  --muted-foreground: 220 12% 35%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;  /* Medium gray for muted text */
   
-  --accent: 36 95% 52%;  /* Darker accent */
-  --accent-foreground: 220 20% 6%;
+  --accent: 36 100% 50%;  /* Bright amber accent */
+  --accent-foreground: 0 0% 100%;
   
-  --destructive: 0 76% 48%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 210 25% 90%;  /* Darker borders */
-  --input: 210 25% 92%;
-  --ring: 174 78% 42%;
+  --border: 214 32% 91%;  /* Subtle borders */
+  --input: 214 32% 95%;
+  --ring: 174 78% 40%;
 }
 
 @layer base {
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/30;
     font-family: var(--font-sans);
-    /* DEBUG: Ensure body is visible */
-    background-color: hsl(220 15% 6%) !important;
     min-height: 100vh;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    @apply font-bold tracking-tight text-white;
+    @apply font-bold tracking-tight;
+    color: hsl(var(--foreground));
   }
 }
 
@@ -104,10 +104,11 @@
 /* Glassmorphism utilities */
 .glass-panel {
   @apply bg-card/80 backdrop-blur-md border border-white/10 shadow-xl shadow-black/40;
+  transition: all 0.2s ease;
 }
 
 .light .glass-panel {
-  @apply bg-white/90 backdrop-blur-md border border-primary/15 shadow-md shadow-gray-300/30;
+  @apply bg-white/95 backdrop-blur-md border border-gray-200 shadow-lg shadow-gray-200/60;
 }
 
 .glass-card {
@@ -115,7 +116,7 @@
 }
 
 .light .glass-card {
-  @apply bg-white/70 backdrop-blur-sm border border-primary/10 hover:bg-white/85 transition-colors duration-300;
+  @apply bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-white/90 transition-colors duration-300;
 }
 
 /* Subtle background texture */

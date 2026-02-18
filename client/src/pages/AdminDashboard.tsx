@@ -1,5 +1,5 @@
 import { useAdminStats } from "@/hooks/use-admin";
-import { MetricCard } from "@/components/MetricCard";
+import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, RadialBarChart, RadialBar, PieChart, Pie } from "recharts";
 import { Activity, Users, DollarSign, Zap } from "lucide-react";

@@ -22,6 +22,7 @@ import {
   MessageCircle,
   Wifi,
   Banknote,
+  ChevronDown,
 } from "lucide-react";
 import { CITY_LIST } from "@shared/cities";
 
@@ -34,18 +35,18 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.05,  // Reduced from 0.1 for faster load
-      delayChildren: 0.05      // Reduced from 0.2 for immediate start
+      staggerChildren: 0.02,  // Minimal stagger for instant feel
+      delayChildren: 0         // No delay for immediate start
     }
   }
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },  // Reduced y from 30
+  hidden: { opacity: 0, y: 10 },  // Reduced movement for speed
   visible: { 
     opacity: 1, 
     y: 0,
-    transition: { duration: 0.35, ease: "easeOut" }  // Reduced from 0.5
+    transition: { duration: 0.2, ease: "easeOut" }  // Fast and snappy
   }
 };
 
@@ -58,7 +59,7 @@ export default function Home({ onGetStarted }: HomeProps) {
       {/* Animated Background Grid */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
-        {[...Array(20)].map((_, i) => (
+        {[...Array(10)].map((_, i) => (
           <motion.div
             key={i}
             className="absolute w-1 h-1 rounded-full bg-primary"
@@ -102,14 +103,14 @@ export default function Home({ onGetStarted }: HomeProps) {
               >
                 <Zap className="text-black w-10 h-10 fill-current" />
               </motion.div>
-              <h1 className="text-6xl md:text-8xl font-bold font-display tracking-tight bg-gradient-to-r from-white via-primary to-emerald-400 bg-clip-text text-transparent">
+              <h1 className="text-6xl md:text-8xl font-bold font-display tracking-tight bg-gradient-to-r from-foreground via-primary to-emerald-500 bg-clip-text text-transparent">
                 SmartRide<span className="text-primary">.ai</span>
               </h1>
             </motion.div>
 
             {/* Animated Tagline */}
             <motion.div variants={itemVariants}>
-              <p className="text-2xl md:text-4xl text-muted-foreground mb-4 max-w-4xl mx-auto">
+              <p className="text-2xl md:text-4xl text-foreground/80 mb-4 max-w-4xl mx-auto">
                 AI-Powered Ride Management Across{" "}
                 <motion.span 
                   className="text-primary font-semibold"
@@ -120,10 +121,10 @@ export default function Home({ onGetStarted }: HomeProps) {
                 </motion.span>
               </p>
               
-              <p className="text-base md:text-xl text-muted-foreground/80 mb-12 max-w-2xl mx-auto leading-relaxed">
-                <span className="text-emerald-400">Predictive pricing</span> •{" "}
-                <span className="text-blue-400">Real-time demand</span> •{" "}
-                <span className="text-amber-400">Smart zones</span>
+              <p className="text-base md:text-xl text-foreground/60 mb-12 max-w-2xl mx-auto leading-relaxed">
+                <span className="text-emerald-500 font-medium">Predictive pricing</span> •{" "}
+                <span className="text-blue-500 font-medium">Real-time demand</span> •{" "}
+                <span className="text-amber-500 font-medium">Smart zones</span>
               </p>
             </motion.div>
 
@@ -132,13 +133,13 @@ export default function Home({ onGetStarted }: HomeProps) {
               <Button
                 onClick={onGetStarted}
                 size="lg"
-                className="relative bg-gradient-to-r from-primary via-emerald-400 to-cyan-400 hover:from-primary/90 hover:via-emerald-400/90 hover:to-cyan-400/90 text-black font-bold text-xl h-16 px-12 shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-all overflow-hidden group"
+                className="relative bg-gradient-to-r from-primary via-emerald-400 to-cyan-400 hover:from-primary/90 hover:via-emerald-400/90 hover:to-cyan-400/90 text-black font-bold text-xl h-16 px-12 shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-shadow duration-150 overflow-hidden group"
               >
                 <motion.div
                   className="absolute inset-0 bg-white"
                   initial={{ x: "-100%", opacity: 0.2 }}
                   whileHover={{ x: "100%", opacity: 0.3 }}
-                  transition={{ duration: 0.6 }}
+                  transition={{ duration: 0.3 }}
                 />
                 <Sparkles className="w-6 h-6 mr-3 relative z-10" />
                 <span className="relative z-10">Launch Dashboard</span>
@@ -156,11 +157,11 @@ export default function Home({ onGetStarted }: HomeProps) {
                 transition={{ duration: 2, repeat: Infinity }}
               >
                 <motion.span 
-                  className="h-3 w-3 rounded-full bg-emerald-400"
+                  className="h-3 w-3 rounded-full bg-emerald-500"
                   animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
                 />
-                <span className="text-sm font-semibold text-emerald-300">Live in {CITY_LIST.length} Major Cities</span>
+                <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Live in {CITY_LIST.length} Major Cities</span>
               </motion.div>
             </motion.div>
           </motion.div>
@@ -174,12 +175,12 @@ export default function Home({ onGetStarted }: HomeProps) {
             className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24"
           >
             <motion.div variants={itemVariants}>
-              <Card className="glass-panel border-0 hover:scale-105 hover:border-primary/30 transition-all duration-300 group">
+              <Card className="glass-panel border-0 hover:scale-[1.02] hover:border-primary/30 transition-transform duration-150 group">
                 <CardContent className="pt-6">
                   <motion.div 
-                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform"
+                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-200"
                     whileHover={{ rotate: 360 }}
-                    transition={{ duration: 0.6 }}
+                    transition={{ duration: 0.4 }}
                   >
                     <IndianRupee className="w-7 h-7 text-primary" />
                   </motion.div>
@@ -192,12 +193,12 @@ export default function Home({ onGetStarted }: HomeProps) {
             </motion.div>
 
             <motion.div variants={itemVariants}>
-              <Card className="glass-panel border-0 hover:scale-105 hover:border-emerald-400/30 transition-all duration-300 group">
+              <Card className="glass-panel border-0 hover:scale-[1.02] hover:border-emerald-400/30 transition-transform duration-150 group">
                 <CardContent className="pt-6">
                   <motion.div 
-                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform"
+                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-200"
                     whileHover={{ y: [-5, 0, -5] }}
-                    transition={{ duration: 0.6, repeat: Infinity }}
+                    transition={{ duration: 0.4, repeat: Infinity }}
                   >
                     <MapPin className="w-7 h-7 text-emerald-400" />
                   </motion.div>
@@ -210,12 +211,12 @@ export default function Home({ onGetStarted }: HomeProps) {
             </motion.div>
 
             <motion.div variants={itemVariants}>
-              <Card className="glass-panel border-0 hover:scale-105 hover:border-amber-400/30 transition-all duration-300 group">
+              <Card className="glass-panel border-0 hover:scale-[1.02] hover:border-amber-400/30 transition-transform duration-150 group">
                 <CardContent className="pt-6">
                   <motion.div 
-                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform"
+                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform duration-200"
                     whileHover={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.3 }}
                   >
                     <TrendingUp className="w-7 h-7 text-amber-400" />
                   </motion.div>
@@ -257,9 +258,9 @@ export default function Home({ onGetStarted }: HomeProps) {
                 initial={{ opacity: 0, scale: 0.8 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ scale: 1.1, y: -5 }}
-                className="glass-panel p-6 text-center hover:border-primary/30 transition-all cursor-pointer"
+                transition={{ duration: 0.2 }}
+                whileHover={{ scale: 1.05, y: -3 }}
+                className="glass-panel p-6 text-center hover:border-primary/30 transition-transform duration-150 cursor-pointer"
               >
                 <div className="text-4xl mb-3">{city.emoji}</div>
                 <div className="text-sm font-semibold">{city.name}</div>
@@ -300,7 +301,7 @@ export default function Home({ onGetStarted }: HomeProps) {
                 key={stat.label}
                 variants={itemVariants}
                 whileHover={{ scale: 1.05 }}
-                className="text-center p-6 glass-panel hover:border-primary/20 transition-all"
+                className="text-center p-6 glass-panel hover:border-primary/20 transition-colors duration-150"
               >
                 <stat.icon className={`w-8 h-8 mx-auto mb-3 ${stat.color}`} />
                 <div className={`text-3xl md:text-4xl font-bold mb-2 ${stat.color}`}>
@@ -378,11 +379,11 @@ export default function Home({ onGetStarted }: HomeProps) {
                 key={item.title}
                 variants={itemVariants}
                 whileHover={{ scale: 1.02 }}
-                className={`glass-panel p-8 border border-white/10 hover:border-primary/30 transition-all bg-gradient-to-br ${item.color} to-transparent`}
+                className={`glass-panel p-8 border border-white/10 hover:border-primary/30 transition-colors duration-150 bg-gradient-to-br ${item.color} to-transparent`}
               >
                 <motion.div
                   whileHover={{ rotate: 360 }}
-                  transition={{ duration: 0.8 }}
+                  transition={{ duration: 0.3 }}
                   className={`w-14 h-14 rounded-xl bg-gradient-to-br from-${item.color.split('/')[0]} to-${item.color.split('/')[0]}/5 flex items-center justify-center mb-4 ${item.iconColor}`}
                 >
                   <item.icon className="w-7 h-7" />
@@ -439,7 +440,7 @@ export default function Home({ onGetStarted }: HomeProps) {
               <motion.div
                 key={section.title}
                 variants={itemVariants}
-                className="glass-panel p-8 border border-white/10 hover:border-primary/30 transition-all"
+                className="glass-panel p-8 border border-white/10 hover:border-primary/30 transition-colors duration-150"
               >
                 <motion.div
                   whileHover={{ scale: 1.1 }}
@@ -503,7 +504,7 @@ export default function Home({ onGetStarted }: HomeProps) {
                 key={method.name}
                 variants={itemVariants}
                 whileHover={{ scale: 1.05, y: -5 }}
-                className="glass-panel p-6 text-center border border-white/10 hover:border-primary/30 transition-all"
+                className="glass-panel p-6 text-center border border-white/10 hover:border-primary/30 transition-colors duration-150"
               >
                 <div className="text-5xl mb-3">{method.emoji}</div>
                 <p className="font-semibold text-sm">{method.name}</p>
@@ -558,7 +559,7 @@ export default function Home({ onGetStarted }: HomeProps) {
                 key={item.title}
                 variants={itemVariants}
                 whileHover={{ scale: 1.05 }}
-                className="glass-panel p-8 border border-green-500/20 hover:border-green-400/40 transition-all text-center"
+                className="glass-panel p-8 border border-green-500/20 hover:border-green-400/40 transition-colors duration-150 text-center"
               >
                 <motion.div
                   whileHover={{ scale: 1.2 }}
@@ -618,7 +619,7 @@ export default function Home({ onGetStarted }: HomeProps) {
               <motion.div
                 key={idx}
                 variants={itemVariants}
-                className="glass-panel p-8 border border-white/10 hover:border-primary/30 transition-all"
+                className="glass-panel p-8 border border-white/10 hover:border-primary/30 transition-colors duration-150"
               >
                 <div className="flex items-center gap-4 mb-4">
                   <div className="text-5xl">{testimonial.avatar}</div>
@@ -662,27 +663,27 @@ export default function Home({ onGetStarted }: HomeProps) {
             {[
               {
                 q: "How are fares calculated in SmartRide?",
-                a: "Fares are calculated using our AI algorithm based on: base fare (₹22-35), distance traveled, time taken, traffic conditions, and real-time demand. You see the final estimated price before booking. No hidden charges."
+                a: "Fares are calculated using our AI algorithm that considers: base fare (₹40-60 depending on city), per-kilometer charge (₹12-15/km), per-minute charge (₹2-3/min), real-time traffic conditions, and demand-based pricing during peak hours. The app shows transparent fare estimates before you confirm your booking."
               },
               {
                 q: "Is SmartRide available 24/7?",
-                a: "Yes! SmartRide operates 24/7 across all 7 cities. However, surge pricing applies during peak hours (8-10 AM, 5-8 PM) and late nights."
+                a: "Yes! SmartRide operates round-the-clock across all 7 cities. Surge pricing may apply during high-demand periods including morning rush (8-11 AM), evening rush (5-9 PM), and late-night hours (11 PM - 6 AM) as per standard industry practice."
               },
               {
                 q: "How do I become a SmartRide driver?",
-                a: "Download the app, complete background verification (takes 2-3 days), provide valid license and vehicle documents. You can start earning immediately after approval. Flexible hours, you decide when to work."
+                a: "Register through our driver app with valid documents: driving license (minimum 1 year old), vehicle RC, insurance, and PUC certificate. Background verification typically takes 3-7 working days. Once approved, you can go online instantly and set your own working hours with complete flexibility."
               },
               {
                 q: "What if I have an issue with my ride?",
-                a: "Contact our 24/7 support team via in-app chat, email, or Hindi/regional language phone support. We resolve 95% of issues within 24 hours with compensation if needed."
+                a: "Our support team is available 24/7 through in-app chat, email (support@smartride.ai), and phone support in Hindi and 10+ regional languages. Most queries are resolved within 48 hours. For critical safety issues, we provide immediate assistance and appropriate action."
               },
               {
                 q: "Are electric/eco-friendly rides more expensive?",
-                a: "No! EV rides are often cheaper due to fuel cost savings. Plus, earn rewards for each eco-friendly ride you take. Good for your wallet and the environment!"
+                a: "Electric vehicle (EV) rides are typically 10-15% cheaper than petrol/diesel rides due to lower fuel costs. You also earn green reward points for every eco-friendly ride, which can be redeemed for discounts. It's better for both your wallet and the environment!"
               },
               {
                 q: "How is my payment information protected?",
-                a: "We use bank-level encryption for all transactions. Your data is encrypted end-to-end and never shared with third parties. Fully compliant with Indian data protection laws."
+                a: "We use industry-standard 256-bit SSL encryption and PCI-DSS compliant payment gateways for all transactions. Your payment data is tokenized and never stored on our servers. We're fully compliant with RBI guidelines and India's Personal Data Protection regulations."
               }
             ].map((faq, idx) => (
               <motion.div
@@ -694,14 +695,14 @@ export default function Home({ onGetStarted }: HomeProps) {
               >
                 <motion.button
                   onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
-                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors duration-150"
                 >
                   <h3 className="text-lg font-semibold text-left">{faq.q}</h3>
                   <motion.div
                     animate={{ rotate: expandedFaq === idx ? 180 : 0 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ duration: 0.15, ease: "easeInOut" }}
                   >
-                    📷
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
                   </motion.div>
                 </motion.button>
                 <motion.div
@@ -710,7 +711,7 @@ export default function Home({ onGetStarted }: HomeProps) {
                     height: expandedFaq === idx ? "auto" : 0,
                     opacity: expandedFaq === idx ? 1 : 0
                   }}
-                  transition={{ duration: 0.3 }}
+                  transition={{ duration: 0.15, ease: "easeInOut" }}
                   className="overflow-hidden border-t border-white/10"
                 >
                   <p className="px-6 py-4 text-muted-foreground leading-relaxed">{faq.a}</p>
@@ -751,7 +752,7 @@ export default function Home({ onGetStarted }: HomeProps) {
             <Button
               onClick={onGetStarted}
               size="lg"
-              className="relative bg-gradient-to-r from-primary via-emerald-400 to-cyan-400 hover:from-primary/90 hover:via-emerald-400/90 hover:to-cyan-400/90 text-black font-bold text-lg h-14 px-10 shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-all"
+              className="relative bg-gradient-to-r from-primary via-emerald-400 to-cyan-400 hover:from-primary/90 hover:via-emerald-400/90 hover:to-cyan-400/90 text-black font-bold text-lg h-14 px-10 shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-shadow duration-150"
             >
               <span className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5" />

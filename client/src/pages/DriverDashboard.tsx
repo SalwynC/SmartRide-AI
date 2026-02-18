@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, TrendingUp, Users, DollarSign } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
-import { MetricCard } from "@/components/MetricCard";
+import { MetricCard } from "@/components/dashboard/MetricCard";
 
 const mockEarningsTrend = [
   { time: "10:00", value: 18 },

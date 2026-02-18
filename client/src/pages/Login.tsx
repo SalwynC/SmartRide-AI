@@ -35,14 +35,14 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.3 }}
       >
         <Card className="w-full max-w-md backdrop-blur-xl bg-white/10 border-white/20 shadow-2xl">
           <CardHeader className="space-y-1 text-center">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               className="flex justify-center mb-4"
             >
               <div className="relative">
@@ -107,7 +107,7 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
                 {isLoading ? (
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                   >
                     <LogIn className="w-5 h-5" />
                   </motion.div>

@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { RoleSwitcher } from "@/components/RoleSwitcher";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { RoleSwitcher } from "@/components/layout/RoleSwitcher";
+import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/layout/ThemeToggle";
+import LoadingScreen from "@/components/feedback/LoadingScreen";
+import { AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
 
 import Home from "@/pages/Home";
@@ -76,6 +78,16 @@ function App() {
   const [showHome, setShowHome] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Hide loading screen after initial render
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800); // Quick load for better UX
+
+    return () => clearTimeout(timer);
+  }, []);
 
   console.log("%c5️⃣ App component rendering", "color: #10b981; font-weight: bold");
   console.log("   Current role:", role);
@@ -87,17 +99,26 @@ function App() {
         <AuthProvider>
           <TooltipProvider>
             <ErrorBoundary>
+              {/* Loading Screen with AnimatePresence for smooth exit */}
+              <AnimatePresence>
+                {isLoading && <LoadingScreen />}
+              </AnimatePresence>
+
               <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30 app-texture">
                 
                 {/* Header - Hidden on Home page and Auth pages */}
                 {!showHome && !showAuth && (
                   <header className="fixed top-0 left-0 right-0 h-16 border-b border-white/10 bg-background/70 backdrop-blur-md z-50 px-4 md:px-6 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setShowHome(true)}
+                      className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+                      aria-label="Return to home page"
+                    >
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
                         <Zap className="text-black w-5 h-5 fill-current" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-xl font-bold font-display tracking-tight text-white">
+                        <span className="text-xl font-bold font-display tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
                           SmartRide<span className="text-primary">.ai</span>
                         </span>
                         <span className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Mobility Control</span>
@@ -106,9 +127,10 @@ function App() {
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         Live
                       </span>
-                    </div>
+                    </button>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
+                      {/* Theme Toggle - Clean & Professional */}
                       <ThemeToggle />
                       <RoleSwitcher currentRole={role} onChange={setRole} />
                     </div>
