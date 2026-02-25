@@ -653,9 +653,9 @@ export default function PassengerDashboard() {
         onClose={() => setShowAuthModal(false)}
         onSuccess={() => {
           setShowAuthModal(false);
-          // Optionally continue with booking after successful auth
         }}
-      />    </div>
+      />
+    </div>
       )}
     </>
   );
