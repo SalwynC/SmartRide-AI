@@ -10,6 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import LoadingScreen from "@/components/feedback/LoadingScreen";
+import NotificationCenter from "@/components/dashboard/NotificationCenter";
 import { AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
 
@@ -130,6 +131,8 @@ function App() {
                     </button>
 
                     <div className="flex items-center gap-4">
+                      {/* Notifications */}
+                      <NotificationCenter userId={1} />
                       {/* Theme Toggle - Clean & Professional */}
                       <ThemeToggle />
                       <RoleSwitcher currentRole={role} onChange={setRole} />

@@ -3,6 +3,9 @@ import {
   users,
   rides,
   zones,
+  ratings,
+  notifications,
+  payments,
   conversations,
   messages,
   type User,
@@ -11,10 +14,16 @@ import {
   type InsertRide,
   type Zone,
   type InsertZone,
+  type Rating,
+  type InsertRating,
+  type Notification,
+  type InsertNotification,
+  type Payment,
+  type InsertPayment,
   type Conversation,
   type Message
 } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -28,13 +37,32 @@ export interface IStorage {
   getRidesByUser(userId: number): Promise<Ride[]>;
   createRide(ride: InsertRide): Promise<Ride>;
   updateRideStatus(id: number, status: string): Promise<Ride>;
-  getAllRides(): Promise<Ride[]>; // For admin stats
+  getAllRides(): Promise<Ride[]>;
   
   // Zones
   getZones(): Promise<Zone[]>;
   getZone(id: number): Promise<Zone | undefined>;
   createZone(zone: InsertZone): Promise<Zone>;
   updateZoneStats(id: number, demandScore: number, trafficIndex: number): Promise<Zone>;
+
+  // Ratings
+  createRating(rating: InsertRating): Promise<Rating>;
+  getRatingsByRide(rideId: number): Promise<Rating[]>;
+  getRatingsByDriver(driverId: number): Promise<Rating[]>;
+  getAverageRating(driverId: number): Promise<number>;
+
+  // Notifications
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotificationsByUser(userId: number): Promise<Notification[]>;
+  markNotificationRead(id: number): Promise<Notification>;
+  markAllRead(userId: number): Promise<void>;
+  getUnreadCount(userId: number): Promise<number>;
+
+  // Payments
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  getPaymentByRide(rideId: number): Promise<Payment | undefined>;
+  getPaymentsByUser(userId: number): Promise<Payment[]>;
+  updatePaymentStatus(id: number, status: string, transactionId?: string): Promise<Payment>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -112,6 +140,73 @@ export class DatabaseStorage implements IStorage {
       .where(eq(zones.id, id))
       .returning();
     return zone;
+  }
+
+  // --- Ratings ---
+  async createRating(insertRating: InsertRating): Promise<Rating> {
+    const [rating] = await db.insert(ratings).values(insertRating).returning();
+    return rating;
+  }
+
+  async getRatingsByRide(rideId: number): Promise<Rating[]> {
+    return db.select().from(ratings).where(eq(ratings.rideId, rideId));
+  }
+
+  async getRatingsByDriver(driverId: number): Promise<Rating[]> {
+    return db.select().from(ratings).where(eq(ratings.driverId, driverId)).orderBy(desc(ratings.createdAt));
+  }
+
+  async getAverageRating(driverId: number): Promise<number> {
+    const driverRatings = await this.getRatingsByDriver(driverId);
+    if (driverRatings.length === 0) return 5.0;
+    const total = driverRatings.reduce((sum, r) => sum + r.stars, 0);
+    return total / driverRatings.length;
+  }
+
+  // --- Notifications ---
+  async createNotification(insertNotification: InsertNotification): Promise<Notification> {
+    const [notification] = await db.insert(notifications).values(insertNotification).returning();
+    return notification;
+  }
+
+  async getNotificationsByUser(userId: number): Promise<Notification[]> {
+    return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async markNotificationRead(id: number): Promise<Notification> {
+    const [notification] = await db.update(notifications).set({ read: true }).where(eq(notifications.id, id)).returning();
+    return notification;
+  }
+
+  async markAllRead(userId: number): Promise<void> {
+    await db.update(notifications).set({ read: true }).where(eq(notifications.userId, userId));
+  }
+
+  async getUnreadCount(userId: number): Promise<number> {
+    const unread = await db.select().from(notifications).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+    return unread.length;
+  }
+
+  // --- Payments ---
+  async createPayment(insertPayment: InsertPayment): Promise<Payment> {
+    const [payment] = await db.insert(payments).values(insertPayment).returning();
+    return payment;
+  }
+
+  async getPaymentByRide(rideId: number): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.rideId, rideId));
+    return payment;
+  }
+
+  async getPaymentsByUser(userId: number): Promise<Payment[]> {
+    return db.select().from(payments).where(eq(payments.userId, userId)).orderBy(desc(payments.createdAt));
+  }
+
+  async updatePaymentStatus(id: number, status: "pending" | "completed" | "failed" | "refunded", transactionId?: string): Promise<Payment> {
+    const update: any = { status };
+    if (transactionId) update.transactionId = transactionId;
+    const [payment] = await db.update(payments).set(update).where(eq(payments.id, id)).returning();
+    return payment;
   }
 }
 

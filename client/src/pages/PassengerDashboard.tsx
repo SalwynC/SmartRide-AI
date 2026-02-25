@@ -13,13 +13,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { MapPin, Clock, Leaf, DollarSign, Car, ShieldCheck, Globe, LogIn, Search } from "lucide-react";
+import { MapPin, Clock, Leaf, DollarSign, Car, ShieldCheck, Globe, LogIn, Search, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { IndiaMap } from "@/components/maps/DelhiMap";
 import { CITY_LIST, getCityZones } from "@shared/cities";
 import AuthModal from "@/components/modals/AuthModal";
+import RideTracker from "@/components/dashboard/RideTracker";
+import RideHistory from "@/pages/RideHistory";
 
 const passengerId = 1; // Simulated User ID
 
@@ -32,6 +34,8 @@ export default function PassengerDashboard() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [pickupOpen, setPickupOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
+  const [trackingRide, setTrackingRide] = useState<{ id: number; fare: number; baseFare: number; surge: number } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const quoteMutation = useRideQuote();
   const createMutation = useCreateRide();
@@ -86,13 +90,21 @@ export default function PassengerDashboard() {
     
     try {
       if (createMutation.isPending) return;
-      await createMutation.mutateAsync(form.getValues());
+      const ride = await createMutation.mutateAsync(form.getValues());
       
       // Enhanced success notification
       toast({ 
         title: "🎉 Ride Booked Successfully!", 
         description: "A driver is being assigned. You'll be picked up soon!",
         duration: 6000,
+      });
+      
+      // Launch ride tracker
+      setTrackingRide({
+        id: ride.id,
+        fare: quote.finalFare,
+        baseFare: quote.baseFare,
+        surge: quote.surgeMultiplier,
       });
       
       setQuote(null); // Reset
@@ -107,6 +119,25 @@ export default function PassengerDashboard() {
   }
 
   return (
+    <>
+      {/* Ride Tracker Overlay */}
+      <AnimatePresence>
+        {trackingRide && (
+          <RideTracker
+            rideId={trackingRide.id}
+            userId={passengerId}
+            fare={trackingRide.fare}
+            baseFare={trackingRide.baseFare}
+            surgeMultiplier={trackingRide.surge}
+            onClose={() => setTrackingRide(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Ride History View */}
+      {showHistory ? (
+        <RideHistory userId={passengerId} onBack={() => setShowHistory(false)} />
+      ) : (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-[calc(100vh-100px)]">
       {/* LEFT: Booking Form */}
       <div className="lg:col-span-1 space-y-6">
@@ -399,7 +430,12 @@ export default function PassengerDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
         >
-          <h3 className="text-lg font-semibold mb-3 px-1">Recent Activity</h3>
+          <h3 className="text-lg font-semibold mb-3 px-1 flex items-center justify-between">
+            Recent Activity
+            <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} className="text-xs gap-1 text-primary">
+              <History className="w-3.5 h-3.5" /> View All
+            </Button>
+          </h3>
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
             {isLoadingRides ? (
               <div className="space-y-2">
@@ -620,5 +656,7 @@ export default function PassengerDashboard() {
           // Optionally continue with booking after successful auth
         }}
       />    </div>
+      )}
+    </>
   );
 }

@@ -8,6 +8,9 @@ import { INDIAN_CITIES, getCityInfo } from "@shared/cities";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 
+// In-memory chat store for demo (would use WebSocket + DB in production)
+const chatStore: Record<number, any[]> = {};
+
 // --- HAVERSINE FORMULA: Calculate real distance from coordinates ---
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Earth's radius in kilometers
@@ -459,6 +462,306 @@ export async function registerRoutes(
     } catch (error) {
       console.error("❌ Zone reset failed:", error);
       res.status(500).json({ message: "Failed to reset zones" });
+    }
+  });
+
+  // ============================================
+  // NEW FEATURE: RATINGS & REVIEWS
+  // ============================================
+  app.post("/api/ratings", async (req, res) => {
+    try {
+      const { rideId, passengerId, driverId, stars, comment } = req.body;
+      if (!rideId || !passengerId || !stars || stars < 1 || stars > 5) {
+        return res.status(400).json({ message: "Invalid rating data" });
+      }
+      const rating = await storage.createRating({
+        rideId,
+        passengerId,
+        driverId: driverId || null,
+        stars,
+        comment: comment || null,
+      });
+
+      // Create notification for driver
+      if (driverId) {
+        await storage.createNotification({
+          userId: driverId,
+          type: "ride_update",
+          title: "New Rating Received",
+          message: `You received a ${stars}-star rating${comment ? `: "${comment}"` : ""}`,
+          rideId,
+        });
+      }
+
+      res.status(201).json(rating);
+    } catch (e) {
+      console.error("Rating error:", e);
+      res.status(500).json({ message: "Failed to submit rating" });
+    }
+  });
+
+  app.get("/api/ratings/ride/:rideId", async (req, res) => {
+    const ratings = await storage.getRatingsByRide(Number(req.params.rideId));
+    res.json(ratings);
+  });
+
+  app.get("/api/ratings/driver/:driverId", async (req, res) => {
+    const ratings = await storage.getRatingsByDriver(Number(req.params.driverId));
+    const avg = await storage.getAverageRating(Number(req.params.driverId));
+    res.json({ ratings, averageRating: parseFloat(avg.toFixed(2)) });
+  });
+
+  // ============================================
+  // NEW FEATURE: NOTIFICATIONS
+  // ============================================
+  app.get("/api/notifications/:userId", async (req, res) => {
+    const notifications = await storage.getNotificationsByUser(Number(req.params.userId));
+    res.json(notifications);
+  });
+
+  app.get("/api/notifications/:userId/unread", async (req, res) => {
+    const count = await storage.getUnreadCount(Number(req.params.userId));
+    res.json({ count });
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const notification = await storage.markNotificationRead(Number(req.params.id));
+      res.json(notification);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to mark as read" });
+    }
+  });
+
+  app.patch("/api/notifications/:userId/read-all", async (req, res) => {
+    try {
+      await storage.markAllRead(Number(req.params.userId));
+      res.json({ message: "All notifications marked as read" });
+    } catch (e) {
+      res.status(500).json({ message: "Failed to mark all as read" });
+    }
+  });
+
+  app.post("/api/notifications", async (req, res) => {
+    try {
+      const { userId, type, title, message, rideId } = req.body;
+      const notification = await storage.createNotification({
+        userId,
+        type,
+        title,
+        message,
+        rideId: rideId || null,
+      });
+      res.status(201).json(notification);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to create notification" });
+    }
+  });
+
+  // ============================================
+  // NEW FEATURE: PAYMENTS
+  // ============================================
+  app.post("/api/payments", async (req, res) => {
+    try {
+      const { rideId, userId, amount, method, breakdown } = req.body;
+      if (!rideId || !userId || !amount || !method) {
+        return res.status(400).json({ message: "Missing payment details" });
+      }
+      const payment = await storage.createPayment({
+        rideId,
+        userId,
+        amount,
+        method,
+        breakdown: breakdown || null,
+      });
+
+      // Simulate payment processing
+      setTimeout(async () => {
+        const txnId = `TXN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        await storage.updatePaymentStatus(payment.id, "completed", txnId);
+        
+        // Create payment confirmation notification
+        await storage.createNotification({
+          userId,
+          type: "payment",
+          title: "Payment Successful",
+          message: `₹${amount.toFixed(2)} paid via ${method.toUpperCase()}. Txn: ${txnId}`,
+          rideId,
+        });
+      }, 1500);
+
+      res.status(201).json(payment);
+    } catch (e) {
+      console.error("Payment error:", e);
+      res.status(500).json({ message: "Payment failed" });
+    }
+  });
+
+  app.get("/api/payments/ride/:rideId", async (req, res) => {
+    const payment = await storage.getPaymentByRide(Number(req.params.rideId));
+    if (!payment) return res.status(404).json({ message: "No payment found" });
+    res.json(payment);
+  });
+
+  app.get("/api/payments/user/:userId", async (req, res) => {
+    const payments = await storage.getPaymentsByUser(Number(req.params.userId));
+    res.json(payments);
+  });
+
+  // ============================================
+  // NEW FEATURE: RIDE TRACKING (Simulated)
+  // ============================================
+  app.get("/api/rides/:id/track", async (req, res) => {
+    const ride = await storage.getRide(Number(req.params.id));
+    if (!ride) return res.status(404).json({ message: "Ride not found" });
+
+    // Simulate real-time location based on ride status
+    const zones = await storage.getZones();
+    const pickupZone = zones.find(z => z.name === ride.pickupAddress);
+    const dropZone = zones.find(z => z.name === ride.dropAddress);
+
+    if (!pickupZone || !dropZone) {
+      return res.json({
+        status: ride.status,
+        driverLocation: null,
+        eta: null,
+        progress: 0,
+      });
+    }
+
+    // Simulate driver progress
+    let progress = 0;
+    if (ride.status === "accepted") progress = Math.random() * 0.2;
+    else if (ride.status === "in_progress") progress = 0.2 + Math.random() * 0.7;
+    else if (ride.status === "completed") progress = 1;
+
+    const driverLat = pickupZone.lat + (dropZone.lat - pickupZone.lat) * progress;
+    const driverLng = pickupZone.lng + (dropZone.lng - pickupZone.lng) * progress;
+
+    res.json({
+      status: ride.status,
+      driverLocation: { lat: driverLat, lng: driverLng },
+      eta: Math.round((1 - progress) * (ride.predictedDuration || 15)),
+      progress: parseFloat(progress.toFixed(2)),
+      driverName: "Raj Kumar",
+      driverRating: 4.85,
+      vehicleInfo: "White Suzuki Swift - DL 01 AB 1234",
+      pickupLocation: { lat: pickupZone.lat, lng: pickupZone.lng },
+      dropLocation: { lat: dropZone.lat, lng: dropZone.lng },
+    });
+  });
+
+  // Update ride status (for simulation)
+  app.patch("/api/rides/:id/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      const ride = await storage.updateRideStatus(Number(req.params.id), status);
+      
+      // Create notification for status change
+      const statusMessages: Record<string, string> = {
+        accepted: "A driver has been assigned to your ride!",
+        in_progress: "Your ride has started. Enjoy your journey!",
+        completed: "Your ride is complete. Don't forget to rate your driver!",
+        cancelled: "Your ride has been cancelled.",
+      };
+
+      if (statusMessages[status]) {
+        await storage.createNotification({
+          userId: ride.passengerId,
+          type: "ride_update",
+          title: status === "completed" ? "Ride Complete!" : "Ride Update",
+          message: statusMessages[status],
+          rideId: ride.id,
+        });
+      }
+
+      res.json(ride);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to update ride status" });
+    }
+  });
+
+  // ============================================
+  // NEW FEATURE: CHAT MESSAGES
+  // ============================================
+  app.post("/api/chat/send", async (req, res) => {
+    try {
+      const { rideId, senderId, senderRole, message } = req.body;
+      if (!rideId || !senderId || !message) {
+        return res.status(400).json({ message: "Missing chat data" });
+      }
+      // Use the simulated in-memory store for chat (since we have conversations table)
+      const chatMessage = {
+        id: Date.now(),
+        rideId,
+        senderId,
+        senderRole: senderRole || "passenger",
+        message,
+        timestamp: new Date().toISOString(),
+      };
+      
+      // Store in memory for demo
+      if (!chatStore[rideId]) chatStore[rideId] = [];
+      chatStore[rideId].push(chatMessage);
+
+      res.status(201).json(chatMessage);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.get("/api/chat/:rideId", async (req, res) => {
+    const rideId = Number(req.params.rideId);
+    const messages = chatStore[rideId] || [];
+    res.json(messages);
+  });
+
+  // ============================================
+  // RIDE HISTORY & ANALYTICS
+  // ============================================
+  app.get("/api/analytics/user/:userId", async (req, res) => {
+    try {
+      const userId = Number(req.params.userId);
+      const rides = await storage.getRidesByUser(userId);
+      const payments = await storage.getPaymentsByUser(userId);
+
+      const totalSpent = rides.reduce((sum, r) => sum + r.finalFare, 0);
+      const totalRides = rides.length;
+      const avgFare = totalRides > 0 ? totalSpent / totalRides : 0;
+      const totalDistance = rides.reduce((sum, r) => sum + r.distanceKm, 0);
+      const totalCarbon = rides.reduce((sum, r) => sum + (r.carbonEmissions || 0), 0);
+
+      // Monthly spending breakdown
+      const monthlySpending: Record<string, number> = {};
+      rides.forEach(r => {
+        const month = new Date(r.createdAt!).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+        monthlySpending[month] = (monthlySpending[month] || 0) + r.finalFare;
+      });
+
+      // Popular routes
+      const routeCounts: Record<string, number> = {};
+      rides.forEach(r => {
+        const route = `${r.pickupAddress} → ${r.dropAddress}`;
+        routeCounts[route] = (routeCounts[route] || 0) + 1;
+      });
+      const popularRoutes = Object.entries(routeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([route, count]) => ({ route, count }));
+
+      res.json({
+        totalSpent: parseFloat(totalSpent.toFixed(2)),
+        totalRides,
+        avgFare: parseFloat(avgFare.toFixed(2)),
+        totalDistance: parseFloat(totalDistance.toFixed(2)),
+        totalCarbon: parseFloat(totalCarbon.toFixed(2)),
+        monthlySpending: Object.entries(monthlySpending).map(([month, amount]) => ({ month, amount: parseFloat(amount.toFixed(2)) })),
+        popularRoutes,
+        rides,
+      });
+    } catch (e) {
+      console.error("Analytics error:", e);
+      res.status(500).json({ message: "Failed to load analytics" });
     }
   });
 

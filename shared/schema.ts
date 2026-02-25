@@ -58,6 +58,42 @@ export const rides = pgTable("rides", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// === RATINGS TABLE ===
+export const ratings = pgTable("ratings", {
+  id: serial("id").primaryKey(),
+  rideId: integer("ride_id").notNull(),
+  passengerId: integer("passenger_id").notNull(),
+  driverId: integer("driver_id"),
+  stars: integer("stars").notNull(), // 1-5
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === NOTIFICATIONS TABLE ===
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  type: text("type", { enum: ["ride_update", "driver_arrival", "promo", "system", "payment"] }).notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").default(false),
+  rideId: integer("ride_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === PAYMENTS TABLE ===
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  rideId: integer("ride_id").notNull(),
+  userId: integer("user_id").notNull(),
+  amount: real("amount").notNull(),
+  method: text("method", { enum: ["upi", "card", "wallet", "cash"] }).notNull(),
+  status: text("status", { enum: ["pending", "completed", "failed", "refunded"] }).default("pending"),
+  transactionId: text("transaction_id"),
+  breakdown: jsonb("breakdown"), // { baseFare, surgeAmount, tax, discount, total }
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === RELATIONS ===
 export const usersRelations = relations(users, ({ many }) => ({
   ridesAsPassenger: many(rides, { relationName: "passengerRides" }),
@@ -95,6 +131,10 @@ export const insertRideSchema = createInsertSchema(rides).omit({
   driverId: true
 });
 
+export const insertRatingSchema = createInsertSchema(ratings).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, status: true, transactionId: true });
+
 // === EXPLICIT API CONTRACT TYPES ===
 
 // User types
@@ -109,6 +149,18 @@ export type InsertZone = z.infer<typeof insertZoneSchema>;
 // Ride types
 export type Ride = typeof rides.$inferSelect;
 export type InsertRide = z.infer<typeof insertRideSchema>;
+
+// Rating types
+export type Rating = typeof ratings.$inferSelect;
+export type InsertRating = z.infer<typeof insertRatingSchema>;
+
+// Notification types
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+// Payment types
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 
 // Booking Request (Input from frontend form)
 export const bookingRequestSchema = z.object({
