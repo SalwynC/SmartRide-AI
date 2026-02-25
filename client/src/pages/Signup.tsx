@@ -57,13 +57,13 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-background p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <Card className="w-full max-w-md backdrop-blur-xl bg-white/10 border-white/20 shadow-2xl">
+        <Card className="w-full max-w-md backdrop-blur-xl glass-panel border-border/50 shadow-2xl">
           <CardHeader className="space-y-1 text-center">
             <motion.div
               initial={{ scale: 0 }}
@@ -72,7 +72,7 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
               className="flex justify-center mb-4"
             >
               <div className="relative">
-                <Car className="w-16 h-16 text-purple-400" strokeWidth={1.5} />
+                <Car className="w-16 h-16 text-primary" strokeWidth={1.5} />
                 <motion.div
                   animate={{
                     scale: [1, 1.2, 1],
@@ -82,21 +82,21 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
                     duration: 2,
                     repeat: Infinity,
                   }}
-                  className="absolute inset-0 bg-purple-400 rounded-full blur-xl"
+                  className="absolute inset-0 bg-primary rounded-full blur-xl"
                 />
               </div>
             </motion.div>
-            <CardTitle className="text-3xl font-bold text-white">Join SmartRide</CardTitle>
-            <CardDescription className="text-gray-300">
+            <CardTitle className="text-3xl font-bold text-foreground">Join SmartRide</CardTitle>
+            <CardDescription className="text-muted-foreground">
               Create your account to get started
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-white">Username</Label>
+                <Label htmlFor="username" className="text-foreground">Username</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="username"
                     type="text"
@@ -104,15 +104,15 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     required
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-white">Email</Label>
+                <Label htmlFor="email" className="text-foreground">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
@@ -120,28 +120,28 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-white">Phone Number (Optional)</Label>
+                <Label htmlFor="phone" className="text-foreground">Phone Number (Optional)</Label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="phone"
                     type="tel"
                     placeholder="+91 98765 43210"
                     value={formData.phoneNumber}
                     onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-white">Account Type</Label>
+                <Label className="text-foreground">Account Type</Label>
                 <RadioGroup
                   value={formData.role}
                   onValueChange={(value: "passenger" | "driver") =>
@@ -150,20 +150,20 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
                   className="flex gap-4"
                 >
                   <div className="flex items-center space-x-2 flex-1">
-                    <RadioGroupItem value="passenger" id="passenger" className="border-white/20" />
+                    <RadioGroupItem value="passenger" id="passenger" className="border-border" />
                     <Label
                       htmlFor="passenger"
-                      className="flex items-center gap-2 text-white cursor-pointer"
+                      className="flex items-center gap-2 text-foreground cursor-pointer"
                     >
                       <Users className="w-4 h-4" />
                       Passenger
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2 flex-1">
-                    <RadioGroupItem value="driver" id="driver" className="border-white/20" />
+                    <RadioGroupItem value="driver" id="driver" className="border-border" />
                     <Label
                       htmlFor="driver"
-                      className="flex items-center gap-2 text-white cursor-pointer"
+                      className="flex items-center gap-2 text-foreground cursor-pointer"
                     >
                       <Car className="w-4 h-4" />
                       Driver
@@ -173,9 +173,9 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-white">Password</Label>
+                <Label htmlFor="password" className="text-foreground">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
@@ -183,15 +183,15 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-white">Confirm Password</Label>
+                <Label htmlFor="confirmPassword" className="text-foreground">Confirm Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="confirmPassword"
                     type="password"
@@ -199,7 +199,7 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     required
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
                 {passwordError && (
@@ -210,7 +210,7 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-6"
+                className="w-full bg-gradient-to-r from-primary to-emerald-400 hover:from-primary/90 hover:to-emerald-400/90 text-black font-semibold py-6"
               >
                 {isLoading ? (
                   <motion.div
@@ -229,11 +229,11 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-gray-300 text-sm">
+              <p className="text-muted-foreground text-sm">
                 Already have an account?{" "}
                 <button
                   onClick={onSwitchToLogin}
-                  className="text-purple-400 hover:text-purple-300 font-semibold underline-offset-4 hover:underline"
+                  className="text-primary hover:text-primary/80 font-semibold underline-offset-4 hover:underline"
                 >
                   Sign in
                 </button>

@@ -300,7 +300,7 @@ export default function DriverDashboard() {
               </div>
             )}
             
-            <div className="absolute bottom-4 right-6 bg-black/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-white/70 border border-white/10 flex items-center gap-2">
+            <div className="absolute bottom-4 right-6 bg-card/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-muted-foreground border border-border/30 flex items-center gap-2">
               <div className="w-3 h-3 bg-amber-500 rounded-sm opacity-80" /> High Demand
               <div className="w-3 h-3 bg-emerald-500 rounded-sm opacity-50 ml-2" /> Low Demand
             </div>
@@ -371,7 +371,7 @@ export default function DriverDashboard() {
                       <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <Tooltip contentStyle={{ backgroundColor: "#0b0f14", borderColor: "#1f2a37" }} itemStyle={{ color: "#e5e7eb" }} />
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} itemStyle={{ color: 'hsl(var(--foreground))' }} />
                   <Area type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={2.5} fill="url(#earningsPulse)" />
                 </AreaChart>
               </ResponsiveContainer>

@@ -40,7 +40,11 @@ function Router({
   setAuthMode: (mode: "login" | "signup") => void;
 }) {
   if (showHome) {
-    return <Home onGetStarted={() => setShowHome(false)} />;
+    return <Home onGetStarted={() => {
+      setShowHome(false);
+      setShowAuth(true);
+      setAuthMode("login");
+    }} />;
   }
 
   if (showAuth) {
@@ -85,13 +89,9 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 800); // Quick load for better UX
-
+    }, 800);
     return () => clearTimeout(timer);
   }, []);
-
-  console.log("%c5️⃣ App component rendering", "color: #10b981; font-weight: bold");
-  console.log("   Current role:", role);
 
   try {
     return (
@@ -109,7 +109,7 @@ function App() {
                 
                 {/* Header - Hidden on Home page and Auth pages */}
                 {!showHome && !showAuth && (
-                  <header className="fixed top-0 left-0 right-0 h-16 border-b border-white/10 bg-background/70 backdrop-blur-md z-50 px-4 md:px-6 flex items-center justify-between">
+                  <header className="fixed top-0 left-0 right-0 h-16 border-b border-border/40 bg-background/70 backdrop-blur-md z-50 px-4 md:px-6 flex items-center justify-between">
                     <button 
                       onClick={() => setShowHome(true)}
                       className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"

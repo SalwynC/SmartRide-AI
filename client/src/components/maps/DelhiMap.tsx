@@ -119,7 +119,7 @@ export function IndiaMap({ cityKey, pickupZone, dropZone, showRoute = false }: I
   const drop = findZone(dropZone);
 
   return (
-    <div className="relative w-full h-full bg-slate-900 rounded-lg overflow-hidden border border-white/10">
+    <div className="relative w-full h-full bg-slate-900 dark:bg-slate-900 rounded-lg overflow-hidden border border-border/30">
       {/* Map Background with Grid */}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <svg className="w-full h-full opacity-20">

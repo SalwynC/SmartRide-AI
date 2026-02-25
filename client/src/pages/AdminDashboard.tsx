@@ -120,8 +120,8 @@ export default function AdminDashboard() {
                 <XAxis dataKey="time" stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#0b0f14', borderColor: '#1f2a37' }}
-                  itemStyle={{ color: '#e5e7eb' }}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
                 />
                 <Area type="monotone" dataKey="demand" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorDemand)" />
               </AreaChart>
@@ -142,8 +142,8 @@ export default function AdminDashboard() {
                 <YAxis dataKey="zone" type="category" stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} width={80} />
                 <Tooltip 
                   cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                  contentStyle={{ backgroundColor: '#0b0f14', borderColor: '#1f2a37' }}
-                  itemStyle={{ color: '#e5e7eb' }}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
                 />
                 <Bar dataKey="minutes" radius={[0, 4, 4, 0]} barSize={30}>
                   {mockWaitTimes.map((entry, index) => (
@@ -168,7 +168,7 @@ export default function AdminDashboard() {
               </RadialBarChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="text-3xl font-display text-white">68%</div>
+              <div className="text-3xl font-display text-foreground">68%</div>
               <div className="text-xs text-muted-foreground uppercase tracking-widest">Active</div>
             </div>
           </CardContent>
@@ -182,7 +182,7 @@ export default function AdminDashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={mockRevenueMix} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={6} />
-                <Tooltip contentStyle={{ backgroundColor: "#0b0f14", borderColor: "#1f2a37" }} itemStyle={{ color: "#e5e7eb" }} />
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} itemStyle={{ color: 'hsl(var(--foreground))' }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>

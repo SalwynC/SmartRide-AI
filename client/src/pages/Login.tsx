@@ -31,13 +31,13 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-background p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <Card className="w-full max-w-md backdrop-blur-xl bg-white/10 border-white/20 shadow-2xl">
+        <Card className="w-full max-w-md backdrop-blur-xl glass-panel border-border/50 shadow-2xl">
           <CardHeader className="space-y-1 text-center">
             <motion.div
               initial={{ scale: 0 }}
@@ -46,7 +46,7 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
               className="flex justify-center mb-4"
             >
               <div className="relative">
-                <Car className="w-16 h-16 text-purple-400" strokeWidth={1.5} />
+                <Car className="w-16 h-16 text-primary" strokeWidth={1.5} />
                 <motion.div
                   animate={{
                     scale: [1, 1.2, 1],
@@ -56,21 +56,21 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
                     duration: 2,
                     repeat: Infinity,
                   }}
-                  className="absolute inset-0 bg-purple-400 rounded-full blur-xl"
+                  className="absolute inset-0 bg-primary rounded-full blur-xl"
                 />
               </div>
             </motion.div>
-            <CardTitle className="text-3xl font-bold text-white">Welcome Back</CardTitle>
-            <CardDescription className="text-gray-300">
+            <CardTitle className="text-3xl font-bold text-foreground">Welcome Back</CardTitle>
+            <CardDescription className="text-muted-foreground">
               Sign in to your SmartRide account
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-white">Email</Label>
+                <Label htmlFor="email" className="text-foreground">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
@@ -78,15 +78,15 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-white">Password</Label>
+                <Label htmlFor="password" className="text-foreground">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
@@ -94,7 +94,7 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                    className="pl-10 bg-muted/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary"
                   />
                 </div>
               </div>
@@ -102,7 +102,7 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-6"
+                className="w-full bg-gradient-to-r from-primary to-emerald-400 hover:from-primary/90 hover:to-emerald-400/90 text-black font-semibold py-6"
               >
                 {isLoading ? (
                   <motion.div
@@ -121,11 +121,11 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-gray-300 text-sm">
+              <p className="text-muted-foreground text-sm">
                 Don't have an account?{" "}
                 <button
                   onClick={onSwitchToSignup}
-                  className="text-purple-400 hover:text-purple-300 font-semibold underline-offset-4 hover:underline"
+                  className="text-primary hover:text-primary/80 font-semibold underline-offset-4 hover:underline"
                 >
                   Sign up
                 </button>
