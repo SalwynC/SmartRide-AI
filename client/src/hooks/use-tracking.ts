@@ -51,3 +51,15 @@ export function useAnalytics(userId: number) {
     enabled: !!userId,
   });
 }
+
+export function useDriverRating(driverId?: number) {
+  return useQuery<{ averageRating: number; ratings: unknown[] }>({
+    queryKey: ["/api/ratings/driver", driverId],
+    queryFn: async () => {
+      const res = await fetch(`/api/ratings/driver/${driverId}`);
+      if (!res.ok) throw new Error("Failed to load driver rating");
+      return res.json();
+    },
+    enabled: !!driverId,
+  });
+}

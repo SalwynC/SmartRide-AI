@@ -79,30 +79,36 @@ export const errorSchemas = {
 // API CONTRACT
 // ============================================
 export const api = {
-  // --- USERS / AUTH (Simple simulation) ---
-  users: {
+  // --- AUTH ---
+  auth: {
     login: {
       method: 'POST' as const,
-      path: '/api/users/login' as const,
-      input: z.object({ username: z.string(), password: z.string() }),
+      path: '/api/auth/login' as const,
+      input: z.object({ email: z.string().email(), password: z.string() }),
       responses: {
         200: userSchema,
-        401: errorSchemas.validation, // Invalid credentials
+        401: errorSchemas.validation,
       },
     },
-    register: {
+    signup: {
       method: 'POST' as const,
-      path: '/api/users/register' as const,
+      path: '/api/auth/signup' as const,
       input: z.object({
         username: z.string().min(1),
-        password: z.string().min(1),
-        role: roleSchema.optional(),
+        email: z.string().email(),
+        password: z.string().min(6),
+        role: roleSchema,
+        phoneNumber: z.string().optional(),
       }),
       responses: {
-        201: userSchema,
+        200: z.object({ message: z.string(), userId: z.number() }),
         400: errorSchemas.validation,
       },
     },
+  },
+
+  // --- USERS ---
+  users: {
     get: {
         method: 'GET' as const,
         path: '/api/users/:id' as const,

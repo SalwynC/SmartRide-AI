@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useZones } from "@/hooks/use-zones";
 import { usePendingRides, useDriverRides, useAcceptRide } from "@/hooks/use-rides";
-import { useUpdateRideStatus } from "@/hooks/use-tracking";
+import { useUpdateRideStatus, useDriverRating } from "@/hooks/use-tracking";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,8 @@ export default function DriverDashboard() {
   const { data: zones, isLoading: loadingZones } = useZones();
   const acceptRide = useAcceptRide();
   const updateStatus = useUpdateRideStatus();
+  const { data: ratingData } = useDriverRating(driverId);
+  const driverRating = ratingData?.averageRating?.toFixed(2) ?? "5.00";
 
   // Derived state — driver's own rides only
   const activeRides = driverRides.filter(r => r.status === "accepted" || r.status === "in_progress");
@@ -86,7 +88,7 @@ export default function DriverDashboard() {
         <MetricCard title="Earnings" value={`₹${todayEarnings.toFixed(0)}`} icon={<DollarSign className="w-5 h-5" />} trend="up" trendValue={completedRides.length > 0 ? `${completedRides.length} rides` : "No rides yet"} delay={0} />
         <MetricCard title="New Requests" value={pendingRides.length.toString()} icon={<Clock className="w-5 h-5" />} trend={pendingRides.length > 0 ? "up" : "neutral"} trendValue={pendingRides.length > 0 ? "Available" : "None"} delay={1} />
         <MetricCard title="Total Rides" value={totalRides.toString()} icon={<Car className="w-5 h-5" />} trend="neutral" trendValue="Lifetime" delay={2} />
-        <MetricCard title="Rating" value="4.92" icon={<Star className="w-5 h-5" />} className="border-primary/30" delay={3} />
+        <MetricCard title="Rating" value={driverRating} icon={<Star className="w-5 h-5" />} className="border-primary/30" delay={3} />
       </div>
 
       {/* Map + Ride Tabs */}

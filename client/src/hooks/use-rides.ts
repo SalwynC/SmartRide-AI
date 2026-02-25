@@ -43,18 +43,6 @@ export function useRides(userId?: number) {
   });
 }
 
-// --- LIST ALL RIDES (admin view) ---
-export function useAllRides() {
-  return useQuery({
-    queryKey: [api.rides.list.path, "all"],
-    queryFn: async () => {
-      const res = await fetch(api.rides.list.path);
-      if (!res.ok) throw new Error("Failed to fetch rides");
-      return api.rides.list.responses[200].parse(await res.json());
-    },
-  });
-}
-
 // --- DRIVER: pending rides available to accept ---
 export function usePendingRides() {
   return useQuery({
