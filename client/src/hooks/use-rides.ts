@@ -1,32 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type BookingRequest } from "@shared/routes";
+import { apiRequest } from "@/lib/queryClient";
 
 // --- QUOTES / PREDICTION ---
 export function useRideQuote() {
   return useMutation({
     mutationFn: async (data: BookingRequest) => {
-      const res = await fetch(api.rides.predict.path, {
-        method: api.rides.predict.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to get quote");
+      const res = await apiRequest(api.rides.predict.method, api.rides.predict.path, data);
       return api.rides.predict.responses[200].parse(await res.json());
     },
   });
 }
 
-// --- CREATE RIDE ---
+// --- CREATE RIDE (requires auth — passenger only) ---
 export function useCreateRide() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: BookingRequest) => {
-      const res = await fetch(api.rides.create.path, {
-        method: api.rides.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to book ride");
+      const res = await apiRequest(api.rides.create.method, api.rides.create.path, data);
       return api.rides.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
@@ -35,10 +26,10 @@ export function useCreateRide() {
   });
 }
 
-// --- LIST RIDES ---
+// --- LIST RIDES (passenger's own rides) ---
 export function useRides(userId?: number) {
   const url = userId 
-    ? buildUrl(api.rides.list.path) + `?userId=${userId}` // In a real app, query params handled better
+    ? buildUrl(api.rides.list.path) + `?userId=${userId}`
     : api.rides.list.path;
     
   return useQuery({
@@ -48,11 +39,11 @@ export function useRides(userId?: number) {
       if (!res.ok) throw new Error("Failed to fetch rides");
       return api.rides.list.responses[200].parse(await res.json());
     },
-    enabled: !!userId, // Only fetch if we have a user ID
+    enabled: !!userId,
   });
 }
 
-// --- LIST ALL RIDES (for driver/admin views — no userId filter) ---
+// --- LIST ALL RIDES (admin view) ---
 export function useAllRides() {
   return useQuery({
     queryKey: [api.rides.list.path, "all"],
@@ -60,6 +51,47 @@ export function useAllRides() {
       const res = await fetch(api.rides.list.path);
       if (!res.ok) throw new Error("Failed to fetch rides");
       return api.rides.list.responses[200].parse(await res.json());
+    },
+  });
+}
+
+// --- DRIVER: pending rides available to accept ---
+export function usePendingRides() {
+  return useQuery({
+    queryKey: [api.rides.list.path, "pending"],
+    queryFn: async () => {
+      const res = await fetch(`${api.rides.list.path}?status=pending`);
+      if (!res.ok) throw new Error("Failed to fetch pending rides");
+      return api.rides.list.responses[200].parse(await res.json());
+    },
+    refetchInterval: 10000, // Poll every 10s for new ride requests
+  });
+}
+
+// --- DRIVER: rides assigned to this driver ---
+export function useDriverRides(driverId?: number) {
+  return useQuery({
+    queryKey: [api.rides.list.path, "driver", driverId],
+    queryFn: async () => {
+      const res = await fetch(`${api.rides.list.path}?driverId=${driverId}`);
+      if (!res.ok) throw new Error("Failed to fetch driver rides");
+      return api.rides.list.responses[200].parse(await res.json());
+    },
+    enabled: !!driverId,
+    refetchInterval: 10000,
+  });
+}
+
+// --- DRIVER: accept a pending ride ---
+export function useAcceptRide() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (rideId: number) => {
+      const res = await apiRequest("POST", `/api/rides/${rideId}/accept`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.rides.list.path] });
     },
   });
 }

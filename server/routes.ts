@@ -130,6 +130,18 @@ export async function registerRoutes(
     }) as NextFunction);
   }
 
+  function requireRole(...roles: string[]) {
+    return async (req: Request, res: Response, next: NextFunction) => {
+      await requireAuth(req, res, (() => {
+        const userRole = (req as any).authenticatedUser?.role;
+        if (!roles.includes(userRole)) {
+          return res.status(403).json({ message: `Requires ${roles.join(" or ")} role` });
+        }
+        next();
+      }) as NextFunction);
+    };
+  }
+
   // --- AUTHENTICATION ---
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -138,6 +150,11 @@ export async function registerRoutes(
       // Basic validation
       if (!username || !email || !password || !role) {
         return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      // Only allow passenger/driver signup (admin is seeded)
+      if (!["passenger", "driver"].includes(role)) {
+        return res.status(400).json({ message: "Role must be passenger or driver" });
       }
 
       // Check if user already exists
@@ -234,26 +251,9 @@ export async function registerRoutes(
 
   // --- USERS ---
   // Legacy plaintext login removed for security — use /api/auth/login with bcrypt instead
+  // Legacy /api/users/register removed — use /api/auth/signup instead
 
-  app.post(api.users.register.path, async (req, res) => {
-    try {
-      const input = api.users.register.input.parse(req.body);
-      // Check if exists
-      const existing = await storage.getUserByUsername(input.username);
-      if (existing) {
-        return res.status(400).json({ message: "Username taken" });
-      }
-      const user = await storage.createUser(input);
-      res.status(201).json(user);
-    } catch (e) {
-        if (e instanceof z.ZodError) {
-            return res.status(400).json({ message: e.errors[0].message });
-        }
-        res.status(500).json({ message: "Internal error" });
-    }
-  });
-
-  app.get(api.users.get.path, async (req, res) => {
+  app.get(api.users.get.path, requireAuth, async (req, res) => {
       const user = await storage.getUser(Number(req.params.id));
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(user);
@@ -361,8 +361,8 @@ export async function registerRoutes(
     }
   });
 
-  // --- RIDES: CREATE ---
-  app.post(api.rides.create.path, async (req, res) => {
+  // --- RIDES: CREATE (passenger only) ---
+  app.post(api.rides.create.path, requireRole("passenger"), async (req, res) => {
     try {
       const input = bookingRequestSchema.parse(req.body);
       
@@ -432,11 +432,22 @@ export async function registerRoutes(
   // --- RIDES: LIST ---
   app.get(api.rides.list.path, async (req, res) => {
     const userId = req.query.userId ? Number(req.query.userId) : undefined;
+    const driverId = req.query.driverId ? Number(req.query.driverId) : undefined;
+    const status = req.query.status as string | undefined;
+    
     if (userId) {
       const rides = await storage.getRidesByUser(userId);
       return res.json(rides);
     }
-    // Return all rides if no userId (for driver/admin views)
+    if (driverId) {
+      const rides = await storage.getRidesByDriver(driverId);
+      return res.json(rides);
+    }
+    if (status === "pending") {
+      const rides = await storage.getPendingRides();
+      return res.json(rides);
+    }
+    // Return all rides for admin views
     const allRides = await storage.getAllRides();
     res.json(allRides);
   });
@@ -506,7 +517,7 @@ export async function registerRoutes(
   // ============================================
   // NEW FEATURE: RATINGS & REVIEWS
   // ============================================
-  app.post("/api/ratings", async (req, res) => {
+  app.post("/api/ratings", requireAuth, async (req, res) => {
     try {
       const { rideId, passengerId, driverId, stars, comment } = req.body;
       if (!rideId || !passengerId || !stars || stars < 1 || stars > 5) {
@@ -607,7 +618,7 @@ export async function registerRoutes(
   // ============================================
   // NEW FEATURE: PAYMENTS
   // ============================================
-  app.post("/api/payments", async (req, res) => {
+  app.post("/api/payments", requireAuth, async (req, res) => {
     try {
       const { rideId, userId, amount, method, breakdown } = req.body;
       if (!rideId || !userId || !amount || !method) {
@@ -704,10 +715,53 @@ export async function registerRoutes(
   });
 
   // Update ride status (for simulation)
-  app.patch("/api/rides/:id/status", async (req, res) => {
+  // --- RIDES: ACCEPT (driver claims a pending ride) ---
+  app.post("/api/rides/:id/accept", requireRole("driver"), async (req, res) => {
+    try {
+      const rideId = Number(req.params.id);
+      const driver = (req as any).authenticatedUser;
+      
+      // Verify ride exists and is pending
+      const ride = await storage.getRide(rideId);
+      if (!ride) return res.status(404).json({ message: "Ride not found" });
+      if (ride.status !== "pending") {
+        return res.status(409).json({ message: "Ride already accepted by another driver" });
+      }
+      
+      // Assign driver and set status to accepted
+      const updatedRide = await storage.assignRideToDriver(rideId, driver.id);
+      
+      // Notify passenger
+      await storage.createNotification({
+        userId: ride.passengerId,
+        type: "driver_arrival",
+        title: "Driver Assigned!",
+        message: `${driver.username} has accepted your ride and is on the way!`,
+        rideId: ride.id,
+      });
+      
+      res.json(updatedRide);
+    } catch (e) {
+      console.error("Accept ride error:", e);
+      res.status(500).json({ message: "Failed to accept ride" });
+    }
+  });
+
+  // --- RIDES: UPDATE STATUS (driver only — for start/complete) ---
+  app.patch("/api/rides/:id/status", requireRole("driver"), async (req, res) => {
     try {
       const { status } = req.body;
-      const ride = await storage.updateRideStatus(Number(req.params.id), status);
+      const driver = (req as any).authenticatedUser;
+      const rideId = Number(req.params.id);
+      
+      // Verify the driver owns this ride
+      const ride = await storage.getRide(rideId);
+      if (!ride) return res.status(404).json({ message: "Ride not found" });
+      if (ride.driverId !== driver.id) {
+        return res.status(403).json({ message: "You can only update your own rides" });
+      }
+      
+      const updatedRide = await storage.updateRideStatus(rideId, status);
       
       // Create notification for status change
       const statusMessages: Record<string, string> = {
@@ -719,15 +773,15 @@ export async function registerRoutes(
 
       if (statusMessages[status]) {
         await storage.createNotification({
-          userId: ride.passengerId,
+          userId: updatedRide.passengerId,
           type: "ride_update",
           title: status === "completed" ? "Ride Complete!" : "Ride Update",
           message: statusMessages[status],
-          rideId: ride.id,
+          rideId: updatedRide.id,
         });
       }
 
-      res.json(ride);
+      res.json(updatedRide);
     } catch (e) {
       res.status(500).json({ message: "Failed to update ride status" });
     }

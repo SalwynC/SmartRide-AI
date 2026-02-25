@@ -12,6 +12,7 @@ const userSchema = z.object({
 
 const zoneSchema = z.object({
   id: z.number(),
+  city: z.string(),
   name: z.string(),
   lat: z.number(),
   lng: z.number(),

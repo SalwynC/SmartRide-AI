@@ -4,7 +4,6 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { RoleSwitcher } from "@/components/layout/RoleSwitcher";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -12,8 +11,9 @@ import ThemeToggle from "@/components/layout/ThemeToggle";
 import LoadingScreen from "@/components/feedback/LoadingScreen";
 import NotificationCenter from "@/components/dashboard/NotificationCenter";
 import { AnimatePresence } from "framer-motion";
-import { Zap, LogOut } from "lucide-react";
+import { Zap, LogOut, User, Car, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
@@ -23,10 +23,65 @@ import PassengerDashboard from "@/pages/PassengerDashboard";
 import DriverDashboard from "@/pages/DriverDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 
-function DashboardPage({ role }: { role: string }) {
-  return role === "driver" ? <DriverDashboard /> :
-         role === "admin" ? <AdminDashboard /> :
-         <PassengerDashboard />;
+/** Renders the correct dashboard based on the user's actual role */
+function DashboardPage() {
+  const { user } = useAuth();
+  const role = user?.role ?? "passenger";
+  
+  // Admin override: allow admin to view other dashboards
+  const [adminView, setAdminView] = useState<"admin" | "passenger" | "driver">("admin");
+  
+  if (role === "admin") {
+    return (
+      <div>
+        {/* Admin view switcher — only for admins */}
+        <div className="flex items-center gap-2 mb-6">
+          <span className="text-sm text-muted-foreground mr-2">View as:</span>
+          {(["admin", "passenger", "driver"] as const).map((v) => (
+            <Button
+              key={v}
+              variant={adminView === v ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAdminView(v)}
+              className="capitalize"
+            >
+              {v === "admin" && <Shield className="w-3.5 h-3.5 mr-1.5" />}
+              {v === "passenger" && <User className="w-3.5 h-3.5 mr-1.5" />}
+              {v === "driver" && <Car className="w-3.5 h-3.5 mr-1.5" />}
+              {v}
+            </Button>
+          ))}
+        </div>
+        {adminView === "admin" && <AdminDashboard />}
+        {adminView === "passenger" && <PassengerDashboard />}
+        {adminView === "driver" && <DriverDashboard />}
+      </div>
+    );
+  }
+  
+  return role === "driver" ? <DriverDashboard /> : <PassengerDashboard />;
+}
+
+/** Renders the role badge in header based on user's actual role */
+function RoleBadge() {
+  const { user } = useAuth();
+  if (!user) return null;
+  
+  const roleConfig = {
+    passenger: { label: "Passenger", icon: User, color: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+    driver: { label: "Driver", icon: Car, color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+    admin: { label: "Admin", icon: Shield, color: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+  };
+  
+  const config = roleConfig[user.role] || roleConfig.passenger;
+  const Icon = config.icon;
+  
+  return (
+    <Badge variant="outline" className={`${config.color} gap-1.5 px-3 py-1 text-xs font-medium`}>
+      <Icon className="w-3 h-3" />
+      {config.label}
+    </Badge>
+  );
 }
 
 // Protected route — redirects to /login if not authenticated
@@ -41,16 +96,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { isAuthenticated, user, logout } = useAuth();
-  const [role, setRole] = useState<"passenger" | "driver" | "admin">("passenger");
   const [location, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(true);
-
-  // Set initial role from user data
-  useEffect(() => {
-    if (user?.role) {
-      setRole(user.role);
-    }
-  }, [user]);
 
   // Hide loading screen after initial render
   useEffect(() => {
@@ -99,9 +146,9 @@ function AppContent() {
             </button>
 
             <div className="flex items-center gap-3">
+              <RoleBadge />
               <NotificationCenter />
               <ThemeToggle />
-              <RoleSwitcher currentRole={role} onChange={setRole} />
               
               {/* Logout Button */}
               <Button
@@ -126,7 +173,7 @@ function AppContent() {
             <Route path="/signup"><Signup /></Route>
             <Route path="/dashboard">
               <ProtectedRoute>
-                <DashboardPage role={role} />
+                <DashboardPage />
               </ProtectedRoute>
             </Route>
             <Route><NotFound /></Route>

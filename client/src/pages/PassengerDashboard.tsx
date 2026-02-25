@@ -29,8 +29,21 @@ export default function PassengerDashboard() {
   const passengerId = user?.id ?? 1; // Use authenticated user ID, fallback for demo
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedCity, setSelectedCity] = useState("delhi");
-  const [quote, setQuote] = useState<any>(null);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [quote, setQuote] = useState<{
+    distanceKm: number;
+    predictedWaitTime: number;
+    predictedDuration: number;
+    baseFare: number;
+    surgeMultiplier: number;
+    finalFare: number;
+    carbonEmissions: number;
+    cancellationProb: number;
+    fairnessScore: number;
+    trafficIndex: number;
+    isPeak: boolean;
+    city?: string;
+    routeCalculated?: boolean;
+  } | null>(null);
   const [pickupOpen, setPickupOpen] = useState(false);
   const [dropOpen, setDropOpen] = useState(false);
   const [trackingRide, setTrackingRide] = useState<{ id: number; fare: number; baseFare: number; surge: number } | null>(null);
@@ -151,6 +164,17 @@ export default function PassengerDashboard() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-[calc(100vh-100px)]">
       {/* LEFT: Booking Form */}
       <div className="lg:col-span-1 space-y-6">
+        {/* Welcome banner */}
+        {user && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/20"
+          >
+            <h2 className="text-lg font-bold">Welcome back, {user.username} 👋</h2>
+            <p className="text-xs text-muted-foreground mt-1">Ready for your next ride?</p>
+          </motion.div>
+        )}
         <motion.div 
           initial={{ opacity: 0, x: -20 }} 
           animate={{ opacity: 1, x: 0 }}

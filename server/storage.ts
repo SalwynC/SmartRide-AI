@@ -39,8 +39,11 @@ export interface IStorage {
   // Rides
   getRide(id: number): Promise<Ride | undefined>;
   getRidesByUser(userId: number): Promise<Ride[]>;
+  getRidesByDriver(driverId: number): Promise<Ride[]>;
+  getPendingRides(): Promise<Ride[]>;
   createRide(ride: CreateRideInput): Promise<Ride>;
   updateRideStatus(id: number, status: string): Promise<Ride>;
+  assignRideToDriver(rideId: number, driverId: number): Promise<Ride>;
   getAllRides(): Promise<Ride[]>;
   
   // Zones
@@ -130,6 +133,31 @@ export class DatabaseStorage implements IStorage {
   
   async getAllRides(): Promise<Ride[]> {
       return db.select().from(rides).orderBy(desc(rides.createdAt));
+  }
+
+  async getRidesByDriver(driverId: number): Promise<Ride[]> {
+    return db
+      .select()
+      .from(rides)
+      .where(eq(rides.driverId, driverId))
+      .orderBy(desc(rides.createdAt));
+  }
+
+  async getPendingRides(): Promise<Ride[]> {
+    return db
+      .select()
+      .from(rides)
+      .where(eq(rides.status, "pending"))
+      .orderBy(desc(rides.createdAt));
+  }
+
+  async assignRideToDriver(rideId: number, driverId: number): Promise<Ride> {
+    const [ride] = await db
+      .update(rides)
+      .set({ driverId, status: "accepted" })
+      .where(eq(rides.id, rideId))
+      .returning();
+    return ride;
   }
 
   // --- Zones ---

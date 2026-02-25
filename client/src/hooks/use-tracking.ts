@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface TrackingData {
   status: string;
@@ -29,12 +30,7 @@ export function useUpdateRideStatus() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ rideId, status }: { rideId: number; status: string }) => {
-      const res = await fetch(`/api/rides/${rideId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error("Failed to update status");
+      const res = await apiRequest("PATCH", `/api/rides/${rideId}/status`, { status });
       return res.json();
     },
     onSuccess: () => {
