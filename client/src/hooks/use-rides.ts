@@ -97,3 +97,23 @@ export function useRide(id: number) {
     enabled: !!id,
   });
 }
+
+// --- PASSENGER: cancel an active ride ---
+export function useCancelRide() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (rideId: number) => {
+      const res = await apiRequest("POST", `/api/rides/${rideId}/cancel`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ message: "Cancel failed" }));
+        throw new Error(body.message);
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.rides.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rides/track"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    },
+  });
+}

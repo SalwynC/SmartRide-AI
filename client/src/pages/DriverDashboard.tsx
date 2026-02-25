@@ -21,8 +21,8 @@ export default function DriverDashboard() {
   const [selectedCity] = useState("delhi");
 
   // Driver-specific data hooks
-  const { data: pendingRides = [] } = usePendingRides();
-  const { data: driverRides = [] } = useDriverRides(driverId);
+  const { data: pendingRides = [], isError: pendingError, refetch: refetchPending } = usePendingRides();
+  const { data: driverRides = [], isError: driverRidesError, refetch: refetchDriverRides } = useDriverRides(driverId);
   const { data: zones, isLoading: loadingZones } = useZones();
   const acceptRide = useAcceptRide();
   const updateStatus = useUpdateRideStatus();
@@ -128,7 +128,12 @@ export default function DriverDashboard() {
 
             {/* Pending Requests */}
             <TabsContent value="requests" className="mt-3 space-y-3 max-h-[380px] overflow-y-auto pr-1">
-              {pendingRides.length === 0 ? (
+              {pendingError ? (
+                <div className="text-center py-10">
+                  <p className="text-sm text-muted-foreground mb-2">Failed to load requests</p>
+                  <Button variant="outline" size="sm" onClick={() => refetchPending()}>Retry</Button>
+                </div>
+              ) : pendingRides.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground">
                   <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No pending requests</p>

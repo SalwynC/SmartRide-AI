@@ -94,6 +94,16 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// === CHAT MESSAGES TABLE (ride-scoped) ===
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  rideId: integer("ride_id").notNull(),
+  senderId: integer("sender_id").notNull(),
+  senderRole: text("sender_role", { enum: ["passenger", "driver"] }).notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === RELATIONS ===
 export const usersRelations = relations(users, ({ many }) => ({
   ridesAsPassenger: many(rides, { relationName: "passengerRides" }),
@@ -134,6 +144,7 @@ export const insertRideSchema = createInsertSchema(rides).omit({
 export const insertRatingSchema = createInsertSchema(ratings).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, status: true, transactionId: true });
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 
@@ -161,6 +172,10 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 // Payment types
 export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+
+// Chat Message types
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 
 // Booking Request (Input from frontend form)
 export const bookingRequestSchema = z.object({

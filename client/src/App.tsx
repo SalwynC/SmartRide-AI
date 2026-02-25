@@ -22,6 +22,7 @@ import NotFound from "@/pages/not-found";
 import PassengerDashboard from "@/pages/PassengerDashboard";
 import DriverDashboard from "@/pages/DriverDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import ProfilePage from "@/pages/ProfilePage";
 
 /** Renders the correct dashboard based on the user's actual role */
 function DashboardPage() {
@@ -149,6 +150,18 @@ function AppContent() {
               <RoleBadge />
               <NotificationCenter />
               <ThemeToggle />
+
+              {/* Profile Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/profile")}
+                className="text-muted-foreground hover:text-foreground gap-2"
+                aria-label="Profile"
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">Profile</span>
+              </Button>
               
               {/* Logout Button */}
               <Button
@@ -174,6 +187,11 @@ function AppContent() {
             <Route path="/dashboard">
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/profile">
+              <ProtectedRoute>
+                <ProfilePage />
               </ProtectedRoute>
             </Route>
             <Route><NotFound /></Route>

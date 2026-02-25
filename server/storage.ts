@@ -6,6 +6,7 @@ import {
   ratings,
   notifications,
   payments,
+  chatMessages,
   conversations,
   messages,
   type User,
@@ -19,6 +20,8 @@ import {
   type InsertNotification,
   type Payment,
   type InsertPayment,
+  type ChatMessage,
+  type InsertChatMessage,
   type Conversation,
   type Message
 } from "@shared/schema";
@@ -70,6 +73,10 @@ export interface IStorage {
   getPaymentByRide(rideId: number): Promise<Payment | undefined>;
   getPaymentsByUser(userId: number): Promise<Payment[]>;
   updatePaymentStatus(id: number, status: string, transactionId?: string): Promise<Payment>;
+
+  // Chat Messages
+  createChatMessage(msg: InsertChatMessage): Promise<ChatMessage>;
+  getChatMessagesByRide(rideId: number): Promise<ChatMessage[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -249,6 +256,16 @@ export class DatabaseStorage implements IStorage {
     if (transactionId) update.transactionId = transactionId;
     const [payment] = await db.update(payments).set(update).where(eq(payments.id, id)).returning();
     return payment;
+  }
+
+  // --- Chat Messages ---
+  async createChatMessage(msg: InsertChatMessage): Promise<ChatMessage> {
+    const [row] = await db.insert(chatMessages).values(msg).returning();
+    return row;
+  }
+
+  async getChatMessagesByRide(rideId: number): Promise<ChatMessage[]> {
+    return db.select().from(chatMessages).where(eq(chatMessages.rideId, rideId));
   }
 }
 

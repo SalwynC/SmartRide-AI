@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useRideTracking, useUpdateRideStatus } from "@/hooks/use-tracking";
-import { Navigation, Phone, Star, Car, MapPin, Clock, X, MessageCircle, CreditCard } from "lucide-react";
+import { useRideTracking } from "@/hooks/use-tracking";
+import { useCancelRide } from "@/hooks/use-rides";
+import { Navigation, Phone, Star, Car, MapPin, Clock, X, MessageCircle, CreditCard, Ban, Loader2 } from "lucide-react";
 import ChatPanel from "@/components/dashboard/ChatPanel";
 import PaymentModal from "@/components/modals/PaymentModal";
 import RatingDialog from "@/components/modals/RatingDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface RideTrackerProps {
   rideId: number;
@@ -28,32 +30,34 @@ const statusSteps = [
 
 export default function RideTracker({ rideId, userId, fare, baseFare, surgeMultiplier, onClose }: RideTrackerProps) {
   const { data: tracking } = useRideTracking(rideId);
-  const updateStatus = useUpdateRideStatus();
+  const cancelRide = useCancelRide();
+  const { toast } = useToast();
   const [showPayment, setShowPayment] = useState(false);
   const [showRating, setShowRating] = useState(false);
-  const [simulatedStep, setSimulatedStep] = useState(0);
+  const paymentShownRef = useRef(false);
 
-  // Auto-simulate ride progression for demo
+  // Show payment modal when ride completes (once)
   useEffect(() => {
-    const statuses = ["accepted", "in_progress", "completed"];
-    const timers: NodeJS.Timeout[] = [];
+    if (tracking?.status === "completed" && !paymentShownRef.current && !showPayment && !showRating) {
+      paymentShownRef.current = true;
+      const timer = setTimeout(() => setShowPayment(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [tracking?.status]);
 
-    statuses.forEach((status, idx) => {
-      const timer = setTimeout(() => {
-        updateStatus.mutate({ rideId, status });
-        setSimulatedStep(idx + 1);
-        if (status === "completed") {
-          // Show payment after ride completes
-          setTimeout(() => setShowPayment(true), 1500);
-        }
-      }, (idx + 1) * 5000); // Every 5 seconds
-      timers.push(timer);
+  const handleCancel = () => {
+    cancelRide.mutate(rideId, {
+      onSuccess: () => {
+        toast({ title: "Ride Cancelled", description: "Your ride has been cancelled successfully." });
+        onClose();
+      },
+      onError: (err: any) => {
+        toast({ title: "Cancel Failed", description: err.message || "Could not cancel ride.", variant: "destructive" });
+      },
     });
+  };
 
-    return () => timers.forEach(clearTimeout);
-  }, [rideId]);
-
-  const currentStatus = tracking?.status || statusSteps[simulatedStep]?.key || "pending";
+  const currentStatus = tracking?.status || "pending";
   const currentStepIndex = statusSteps.findIndex(s => s.key === currentStatus);
   const progressPercent = ((currentStepIndex + 1) / statusSteps.length) * 100;
 
@@ -134,14 +138,14 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-lg">{tracking?.driverName || "Raj Kumar"}</h3>
+                          <h3 className="font-bold text-lg">{tracking?.driverName || "Assigning..."}</h3>
                           <Badge className="bg-amber-500/20 text-amber-400 text-xs">
                             <Star className="w-3 h-3 mr-1 fill-current" />
-                            {tracking?.driverRating || 4.85}
+                            {tracking?.driverRating?.toFixed(1) || "—"}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                          {tracking?.vehicleInfo || "White Suzuki Swift - DL 01 AB 1234"}
+                          {tracking?.vehicleInfo || "Vehicle details incoming…"}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -208,8 +212,8 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
                 <motion.div
                   className="absolute z-10"
                   animate={{
-                    left: `${20 + (tracking?.progress || simulatedStep / 3) * 55}%`,
-                    top: `${60 - (tracking?.progress || simulatedStep / 3) * 35}%`,
+                    left: `${20 + (tracking?.progress || 0) * 55}%`,
+                    top: `${60 - (tracking?.progress || 0) * 35}%`,
                   }}
                   transition={{ duration: 2, ease: "easeInOut" }}
                 >
@@ -258,6 +262,19 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
               )}
             </CardContent>
           </Card>
+
+          {/* Cancel Button — only when ride hasn't started yet */}
+          {(currentStatus === "pending" || currentStatus === "accepted") && (
+            <Button
+              variant="destructive"
+              className="w-full gap-2"
+              onClick={handleCancel}
+              disabled={cancelRide.isPending}
+            >
+              {cancelRide.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+              Cancel Ride
+            </Button>
+          )}
         </div>
 
         {/* Chat Panel (floating) */}
@@ -266,7 +283,7 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
             rideId={rideId}
             userId={userId}
             userRole="passenger"
-            driverName={tracking?.driverName || "Raj Kumar"}
+            driverName={tracking?.driverName || "Driver"}
           />
         )}
       </motion.div>
@@ -294,7 +311,7 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
         }}
         rideId={rideId}
         passengerId={userId}
-        driverName={tracking?.driverName || "Raj Kumar"}
+        driverName={tracking?.driverName || "Driver"}
       />
     </>
   );

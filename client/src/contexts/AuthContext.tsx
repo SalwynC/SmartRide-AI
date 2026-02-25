@@ -9,6 +9,7 @@ interface User {
   emailVerified: boolean;
   phoneNumber?: string;
   profileImage?: string;
+  createdAt?: string;
 }
 
 interface AuthContextType {
@@ -19,6 +20,7 @@ interface AuthContextType {
   signup: (data: SignupData) => Promise<boolean>;
   logout: () => void;
   verifyEmail: (token: string) => Promise<boolean>;
+  refreshUser: () => void;
 }
 
 interface SignupData {
@@ -161,6 +163,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const refreshUser = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        headers: { "x-user-id": String(user.id) },
+      });
+      if (res.ok) {
+        const fresh = await res.json();
+        setUser(fresh);
+        localStorage.setItem("smartride-user", JSON.stringify(fresh));
+      }
+    } catch {
+      // silently fail — stale data is fine
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -171,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         verifyEmail,
+        refreshUser,
       }}
     >
       {children}

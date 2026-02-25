@@ -51,7 +51,7 @@ export default function PassengerDashboard() {
 
   const quoteMutation = useRideQuote();
   const createMutation = useCreateRide();
-  const { data: rides, isLoading: isLoadingRides } = useRides(passengerId);
+  const { data: rides, isLoading: isLoadingRides, isError: isRidesError, refetch: refetchRides } = useRides(passengerId);
 
   const form = useForm<z.infer<typeof bookingRequestSchema>>({
     resolver: zodResolver(bookingRequestSchema),
@@ -271,7 +271,7 @@ export default function PassengerDashboard() {
                                 </Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[400px] p-0" align="start">
+                            <PopoverContent className="w-[400px] max-w-[calc(100vw-2rem)] p-0" align="start">
                               <Command>
                                 <CommandInput placeholder="Search zones..." className="border-none focus:ring-0" />
                                 <CommandList>
@@ -338,7 +338,7 @@ export default function PassengerDashboard() {
                                 </Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[400px] p-0" align="start">
+                            <PopoverContent className="w-[400px] max-w-[calc(100vw-2rem)] p-0" align="start">
                               <Command>
                                 <CommandInput placeholder="Search zones..." className="border-none focus:ring-0" />
                                 <CommandList>
@@ -471,7 +471,14 @@ export default function PassengerDashboard() {
             </Button>
           </h3>
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-            {isLoadingRides ? (
+            {isRidesError ? (
+              <div className="p-6 text-center glass-panel rounded-lg">
+                <p className="text-sm text-muted-foreground mb-2">Failed to load rides</p>
+                <Button variant="outline" size="sm" onClick={() => refetchRides()}>
+                  Retry
+                </Button>
+              </div>
+            ) : isLoadingRides ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, idx) => (
                   <div key={idx} className="p-4 rounded-lg glass-panel">

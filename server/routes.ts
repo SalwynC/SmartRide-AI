@@ -7,8 +7,7 @@ import { INDIAN_CITIES, getCityInfo } from "@shared/cities";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 
-// In-memory chat store for demo (would use WebSocket + DB in production)
-const chatStore: Record<number, any[]> = {};
+// Chat store uses database (chatMessages table) for persistence
 
 // --- HAVERSINE FORMULA: Calculate real distance from coordinates ---
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -257,6 +256,53 @@ export async function registerRoutes(
       const user = await storage.getUser(Number(req.params.id));
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(user);
+  });
+
+  // --- USERS: UPDATE PROFILE ---
+  app.patch("/api/users/:id", requireAuth, async (req, res) => {
+    try {
+      const targetId = Number(req.params.id);
+      const caller = (req as any).authenticatedUser;
+
+      // Only allow users to update their own profile
+      if (caller.id !== targetId) {
+        return res.status(403).json({ message: "You can only update your own profile" });
+      }
+
+      const { username, email, phoneNumber, currentPassword, newPassword } = req.body;
+
+      const updateData: Record<string, any> = {};
+      if (username !== undefined) updateData.username = username;
+      if (email !== undefined) updateData.email = email;
+      if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+
+      // Handle password change
+      if (newPassword) {
+        if (!currentPassword) {
+          return res.status(400).json({ message: "Current password is required to set a new password" });
+        }
+        const valid = await bcrypt.compare(currentPassword, caller.password);
+        if (!valid) {
+          return res.status(401).json({ message: "Current password is incorrect" });
+        }
+        updateData.password = await bcrypt.hash(newPassword, 10);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const updated = await storage.updateUser(targetId, updateData);
+      // Never send password back
+      const { password: _pw, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (e: any) {
+      if (e?.message?.includes("unique")) {
+        return res.status(409).json({ message: "Username already taken" });
+      }
+      console.error("Update user error:", e);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
   });
 
   // --- ZONES ---
@@ -701,14 +747,27 @@ export async function registerRoutes(
     const driverLat = pickupZone.lat + (dropZone.lat - pickupZone.lat) * progress;
     const driverLng = pickupZone.lng + (dropZone.lng - pickupZone.lng) * progress;
 
+    // Fetch real driver info from DB
+    let driverName = "Searching…";
+    let driverRating = 0;
+    let vehicleInfo = "";
+    if (ride.driverId) {
+      const driver = await storage.getUser(ride.driverId);
+      if (driver) {
+        driverName = driver.username;
+        driverRating = await storage.getAverageRating(driver.id);
+      }
+      vehicleInfo = "White Suzuki Swift - DL 01 AB 1234"; // placeholder per driver
+    }
+
     res.json({
       status: ride.status,
       driverLocation: { lat: driverLat, lng: driverLng },
       eta: Math.round((1 - progress) * (ride.predictedDuration || 15)),
       progress: parseFloat(progress.toFixed(2)),
-      driverName: "Raj Kumar",
-      driverRating: 4.85,
-      vehicleInfo: "White Suzuki Swift - DL 01 AB 1234",
+      driverName,
+      driverRating: parseFloat(driverRating.toFixed(2)),
+      vehicleInfo,
       pickupLocation: { lat: pickupZone.lat, lng: pickupZone.lng },
       dropLocation: { lat: dropZone.lat, lng: dropZone.lng },
     });
@@ -744,6 +803,54 @@ export async function registerRoutes(
     } catch (e) {
       console.error("Accept ride error:", e);
       res.status(500).json({ message: "Failed to accept ride" });
+    }
+  });
+
+  // --- RIDES: CANCEL (passenger cancels before ride starts) ---
+  app.post("/api/rides/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const rideId = Number(req.params.id);
+      const user = (req as any).authenticatedUser;
+
+      const ride = await storage.getRide(rideId);
+      if (!ride) return res.status(404).json({ message: "Ride not found" });
+
+      // Only the passenger who booked can cancel
+      if (ride.passengerId !== user.id) {
+        return res.status(403).json({ message: "You can only cancel your own rides" });
+      }
+
+      // Only allow cancel for pending or accepted (not in_progress, completed, already cancelled)
+      if (!["pending", "accepted"].includes(ride.status!)) {
+        return res.status(409).json({ message: `Cannot cancel a ride that is ${ride.status}` });
+      }
+
+      const updatedRide = await storage.updateRideStatus(rideId, "cancelled");
+
+      // Notify the driver if one was assigned
+      if (ride.driverId) {
+        await storage.createNotification({
+          userId: ride.driverId,
+          type: "ride_update",
+          title: "Ride Cancelled",
+          message: `The passenger has cancelled ride #${rideId}.`,
+          rideId,
+        });
+      }
+
+      // Notify the passenger too
+      await storage.createNotification({
+        userId: ride.passengerId,
+        type: "ride_update",
+        title: "Ride Cancelled",
+        message: "Your ride has been cancelled successfully.",
+        rideId,
+      });
+
+      res.json(updatedRide);
+    } catch (e) {
+      console.error("Cancel ride error:", e);
+      res.status(500).json({ message: "Failed to cancel ride" });
     }
   });
 
@@ -835,41 +942,57 @@ export async function registerRoutes(
       if (!rideId || !senderId || !message) {
         return res.status(400).json({ message: "Missing chat data" });
       }
-      const chatMessage = {
-        id: Date.now(),
+
+      // Persist to database
+      const saved = await storage.createChatMessage({
         rideId,
         senderId,
         senderRole: senderRole || "passenger",
         message,
-        timestamp: new Date().toISOString(),
-      };
-      
-      if (!chatStore[rideId]) chatStore[rideId] = [];
-      chatStore[rideId].push(chatMessage);
+      });
 
       // AI auto-reply for passenger messages
       if (senderRole === "passenger" || !senderRole) {
-        const aiReply = {
-          id: Date.now() + 1,
+        await storage.createChatMessage({
           rideId,
           senderId: 0, // AI bot
-          senderRole: "driver" as const,
+          senderRole: "driver",
           message: getAIBotReply(message),
-          timestamp: new Date(Date.now() + 1000).toISOString(),
-        };
-        chatStore[rideId].push(aiReply);
+        });
       }
 
-      res.status(201).json(chatMessage);
+      res.status(201).json({
+        id: saved.id,
+        rideId: saved.rideId,
+        senderId: saved.senderId,
+        senderRole: saved.senderRole,
+        message: saved.message,
+        timestamp: saved.createdAt?.toISOString(),
+      });
     } catch (e) {
+      console.error("Chat send error:", e);
       res.status(500).json({ message: "Failed to send message" });
     }
   });
 
   app.get("/api/chat/:rideId", async (req, res) => {
-    const rideId = Number(req.params.rideId);
-    const messages = chatStore[rideId] || [];
-    res.json(messages);
+    try {
+      const rideId = Number(req.params.rideId);
+      const rows = await storage.getChatMessagesByRide(rideId);
+      // Map to the shape the frontend expects
+      const messages = rows.map(r => ({
+        id: r.id,
+        rideId: r.rideId,
+        senderId: r.senderId,
+        senderRole: r.senderRole,
+        message: r.message,
+        timestamp: r.createdAt?.toISOString(),
+      }));
+      res.json(messages);
+    } catch (e) {
+      console.error("Chat fetch error:", e);
+      res.json([]);
+    }
   });
 
   // ============================================

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, BellRing, Check, CheckCheck, X, Car, CreditCard, Megaphone, Settings, AlertCircle } from "lucide-react";
+import { Bell, BellRing, Check, CheckCheck, X, Car, CreditCard, Megaphone, Settings, AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotifications, useUnreadCount, useMarkRead, useMarkAllRead, type NotificationItem } from "@/hooks/use-notifications";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 
 interface NotificationCenterProps {
   userId?: number;
@@ -29,6 +30,7 @@ export default function NotificationCenter({ userId: propUserId }: NotificationC
   const { user } = useAuth();
   const userId = user?.id ?? propUserId ?? 1;
   const [isOpen, setIsOpen] = useState(false);
+  const [, navigate] = useLocation();
   const { data: notifications = [] } = useNotifications(userId);
   const { data: unreadData } = useUnreadCount(userId);
   const markRead = useMarkRead();
@@ -140,7 +142,19 @@ export default function NotificationCenter({ userId: propUserId }: NotificationC
                         className={`flex items-start gap-3 p-4 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer ${
                           !notif.read ? "bg-primary/5" : ""
                         }`}
-                        onClick={() => !notif.read && markRead.mutate(notif.id)}
+                        onClick={() => {
+                          if (!notif.read) markRead.mutate(notif.id);
+                          // Navigate to dashboard for ride-related notifications
+                          if (notif.rideId && (notif.type === "ride_update" || notif.type === "driver_arrival")) {
+                            setIsOpen(false);
+                            navigate("/dashboard");
+                          }
+                          // Navigate to profile for payment notifications
+                          if (notif.type === "payment") {
+                            setIsOpen(false);
+                            navigate("/profile");
+                          }
+                        }}
                       >
                         <div className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center ${colorClass}`}>
                           <IconComp className="w-4 h-4" />
@@ -155,7 +169,14 @@ export default function NotificationCenter({ userId: propUserId }: NotificationC
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
-                          <p className="text-[10px] text-muted-foreground/60 mt-1">{formatTime(notif.createdAt)}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-[10px] text-muted-foreground/60">{formatTime(notif.createdAt)}</p>
+                            {(notif.rideId || notif.type === "payment") && (
+                              <span className="flex items-center gap-0.5 text-[10px] text-primary/70">
+                                <ExternalLink className="w-2.5 h-2.5" /> View
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     );
