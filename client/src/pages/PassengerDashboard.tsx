@@ -23,11 +23,10 @@ import AuthModal from "@/components/modals/AuthModal";
 import RideTracker from "@/components/dashboard/RideTracker";
 import RideHistory from "@/pages/RideHistory";
 
-const passengerId = 1; // Simulated User ID
-
 export default function PassengerDashboard() {
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const passengerId = user?.id ?? 1; // Use authenticated user ID, fallback for demo
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedCity, setSelectedCity] = useState("delhi");
   const [quote, setQuote] = useState<any>(null);

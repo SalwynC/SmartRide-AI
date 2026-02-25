@@ -1,11 +1,18 @@
+import { useState } from "react";
 import { useZones } from "@/hooks/use-zones";
 import { useAdminStats } from "@/hooks/use-admin";
-import { motion } from "framer-motion";
+import { useRides } from "@/hooks/use-rides";
+import { useUpdateRideStatus } from "@/hooks/use-tracking";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, TrendingUp, Users, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MapPin, TrendingUp, Users, DollarSign, CheckCircle, XCircle, Navigation, Clock } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { useToast } from "@/hooks/use-toast";
+
+const driverId = 2; // Simulated driver ID
 
 const mockEarningsTrend = [
   { time: "10:00", value: 18 },
@@ -19,6 +26,48 @@ const mockEarningsTrend = [
 export default function DriverDashboard() {
   const { data: zones, isLoading: loadingZones, error: zonesError } = useZones();
   const { data: stats, error: statsError } = useAdminStats();
+  const { data: allRides } = useRides(undefined); // Fetch all rides
+  const updateStatus = useUpdateRideStatus();
+  const { toast } = useToast();
+
+  // Filter rides by status for driver view
+  const pendingRides = allRides?.filter(r => r.status === "pending") || [];
+  const activeRides = allRides?.filter(r => r.status === "accepted" || r.status === "in_progress") || [];
+  const completedRides = allRides?.filter(r => r.status === "completed") || [];
+  const todayEarnings = completedRides.reduce((sum, r) => sum + r.finalFare, 0);
+
+  function handleAcceptRide(rideId: number) {
+    updateStatus.mutate(
+      { rideId, status: "accepted" },
+      {
+        onSuccess: () => {
+          toast({ title: "✅ Ride Accepted!", description: `Ride #${rideId} — head to pickup location` });
+        },
+      }
+    );
+  }
+
+  function handleStartRide(rideId: number) {
+    updateStatus.mutate(
+      { rideId, status: "in_progress" },
+      {
+        onSuccess: () => {
+          toast({ title: "🚗 Ride Started!", description: "Drive safely!" });
+        },
+      }
+    );
+  }
+
+  function handleCompleteRide(rideId: number) {
+    updateStatus.mutate(
+      { rideId, status: "completed" },
+      {
+        onSuccess: () => {
+          toast({ title: "🎉 Ride Completed!", description: "Payment will be processed" });
+        },
+      }
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -26,24 +75,26 @@ export default function DriverDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard 
           title="Today's Earnings" 
-          value={`₹${(stats?.revenue ? stats.revenue * 0.2 : 142.50).toFixed(2)}`} 
+          value={`₹${todayEarnings.toFixed(2)}`} 
           icon={<DollarSign className="w-5 h-5" />} 
           trend="up" 
           trendValue="+12%" 
           delay={0}
         />
         <MetricCard 
-          title="Hours Online" 
-          value="6.4" 
+          title="Pending Requests" 
+          value={pendingRides.length.toString()} 
           icon={<ClockIcon />} 
+          trend={pendingRides.length > 0 ? "up" : "neutral"}
+          trendValue={pendingRides.length > 0 ? "New!" : "None"}
           delay={1}
         />
         <MetricCard 
           title="Completed Rides" 
-          value={stats ? Math.floor(stats.totalRides / 5).toString() : "12"} 
+          value={completedRides.length.toString()} 
           icon={<CarIcon />} 
           trend="neutral" 
-          trendValue="Avg"
+          trendValue="Today"
           delay={2}
         />
         <MetricCard 
@@ -53,6 +104,146 @@ export default function DriverDashboard() {
           className="border-primary/30"
           delay={3}
         />
+      </div>
+
+      {/* Ride Requests & Active Rides */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Incoming Ride Requests */}
+        <div className="space-y-3">
+          <h2 className="text-xl font-bold font-display flex items-center gap-2">
+            <Navigation className="w-5 h-5 text-primary" />
+            Incoming Requests
+            {pendingRides.length > 0 && (
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse">
+                {pendingRides.length} New
+              </Badge>
+            )}
+          </h2>
+          {pendingRides.length === 0 ? (
+            <Card className="glass-panel border-0">
+              <CardContent className="p-8 text-center text-muted-foreground">
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No pending ride requests</p>
+                <p className="text-xs mt-1">New requests will appear here</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+              <AnimatePresence>
+                {pendingRides.map((ride) => (
+                  <motion.div
+                    key={ride.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                  >
+                    <Card className="border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Ride #{ride.id}</div>
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="font-medium">{ride.pickupAddress}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-sm mt-1">
+                              <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="font-medium">{ride.dropAddress}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-primary">₹{ride.finalFare.toFixed(0)}</div>
+                            <div className="text-xs text-muted-foreground">{ride.distanceKm.toFixed(1)} km</div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleAcceptRide(ride.id)}
+                            disabled={updateStatus.isPending}
+                            className="flex-1 bg-gradient-to-r from-primary to-emerald-400 text-black font-bold"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" /> Accept
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* Active Rides */}
+        <div className="space-y-3">
+          <h2 className="text-xl font-bold font-display flex items-center gap-2">
+            🚗 Active Rides
+            {activeRides.length > 0 && (
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                {activeRides.length} Active
+              </Badge>
+            )}
+          </h2>
+          {activeRides.length === 0 ? (
+            <Card className="glass-panel border-0">
+              <CardContent className="p-8 text-center text-muted-foreground">
+                <Navigation className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No active rides</p>
+                <p className="text-xs mt-1">Accept a request to start</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+              {activeRides.map((ride) => (
+                <motion.div key={ride.id} layout>
+                  <Card className="border-emerald-500/20 bg-emerald-500/5">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs text-muted-foreground">Ride #{ride.id}</span>
+                            <Badge className={`text-[10px] ${ride.status === "accepted" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                              {ride.status === "accepted" ? "Heading to pickup" : "In Progress"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>{ride.pickupAddress}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-sm mt-1">
+                            <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                            <span>{ride.dropAddress}</span>
+                          </div>
+                        </div>
+                        <div className="text-lg font-bold text-primary">₹{ride.finalFare.toFixed(0)}</div>
+                      </div>
+                      {ride.status === "accepted" ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleStartRide(ride.id)}
+                          disabled={updateStatus.isPending}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                        >
+                          <Navigation className="w-4 h-4 mr-1" /> Start Ride
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleCompleteRide(ride.id)}
+                          disabled={updateStatus.isPending}
+                          className="w-full bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" /> Complete Ride
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

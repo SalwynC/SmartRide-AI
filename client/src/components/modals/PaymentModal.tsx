@@ -57,9 +57,9 @@ export default function PaymentModal({ isOpen, onClose, rideId, userId, fare, su
         breakdown,
       });
 
-      // Simulate processing delay
+      // Simulate processing delay on UI side
       await new Promise(r => setTimeout(r, 2000));
-      setReceipt({ ...payment, status: "completed", transactionId: `TXN${Date.now()}` });
+      setReceipt({ ...payment, status: "completed" });
       setStep("receipt");
       toast({ title: "Payment Successful!", description: `₹${total.toFixed(2)} paid via ${selectedMethod.toUpperCase()}` });
       onPaymentComplete?.(payment);

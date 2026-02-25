@@ -358,29 +358,58 @@ export async function registerRoutes(
     try {
       const input = bookingRequestSchema.parse(req.body);
       
-      // Re-run minimal logic or trust inputs? Ideally re-run.
-      // For MVP, we'll re-calculate the fare to ensure server-side truth.
-      // (Simplified duplication of logic above)
-      const isPeak = input.simulatedPeak ?? false;
-      const traffic = input.simulatedTraffic ?? 5;
-      let surge = 1.0;
-      if (isPeak) surge += 0.15;
+      // Detect city from pickup address (same logic as predict)
+      let cityKey = "delhi";
+      const pickupLower = input.pickupAddress.toLowerCase();
+      if (pickupLower.includes("mumbai") || pickupLower.includes("bandra") || pickupLower.includes("andheri")) cityKey = "mumbai";
+      else if (pickupLower.includes("bangalore") || pickupLower.includes("bengaluru") || pickupLower.includes("koramangala")) cityKey = "bangalore";
+      else if (pickupLower.includes("hyderabad") || pickupLower.includes("hitec") || pickupLower.includes("gachibowli")) cityKey = "hyderabad";
+      else if (pickupLower.includes("chennai") || pickupLower.includes("nagar")) cityKey = "chennai";
+      else if (pickupLower.includes("pune") || pickupLower.includes("hinjewadi") || pickupLower.includes("kharadi")) cityKey = "pune";
+      else if (pickupLower.includes("kolkata") || pickupLower.includes("salt lake") || pickupLower.includes("park street")) cityKey = "kolkata";
       
-      const fare = (30 + input.distanceKm * 10) * surge;
+      const cityInfo = getCityInfo(cityKey);
+      
+      // Calculate real distance using Haversine (same as predict)
+      let realDistance = input.distanceKm;
+      const zones = await storage.getZones();
+      const pickupZone = zones.find(z => z.name === input.pickupAddress);
+      const dropZone = zones.find(z => z.name === input.dropAddress);
+      
+      if (pickupZone && dropZone) {
+        realDistance = calculateDistance(pickupZone.lat, pickupZone.lng, dropZone.lat, dropZone.lng);
+      }
+      
+      // Re-calculate fare with city-specific pricing (server-side truth)
+      const isPeak = input.simulatedPeak ?? (new Date().getHours() >= 17 && new Date().getHours() <= 19);
+      const traffic = input.simulatedTraffic ?? 5.0;
+      
+      const demand = isPeak ? 150 : 50;
+      const supply = 30;
+      const ratio = demand / supply;
+      let surge = 1.0;
+      if (ratio > 1.5) surge += 0.3;
+      if (isPeak) surge += 0.15;
+      if (traffic > 7) surge += 0.1;
+
+      const distanceCost = realDistance * cityInfo.ratePerKm;
+      const finalFare = (cityInfo.baseFare + distanceCost) * surge;
+      const waitTime = predictWaitTime(demand, supply);
+      const duration = (realDistance / (30 / (traffic / 2 + 1))) * 60;
       
       const ride = await storage.createRide({
         passengerId: input.passengerId,
         pickupAddress: input.pickupAddress,
         dropAddress: input.dropAddress,
-        distanceKm: input.distanceKm,
-        baseFare: 30,
-        surgeMultiplier: surge,
-        finalFare: fare,
-        predictedWaitTime: 5,
-        predictedDuration: 15,
-        cancellationProb: 0.1,
-        carbonEmissions: input.distanceKm * 0.12,
-        pricingFairnessScore: 9.0
+        distanceKm: parseFloat(realDistance.toFixed(2)),
+        baseFare: cityInfo.baseFare,
+        surgeMultiplier: parseFloat(surge.toFixed(2)),
+        finalFare: parseFloat(finalFare.toFixed(2)),
+        predictedWaitTime: parseFloat(waitTime.toFixed(1)),
+        predictedDuration: parseFloat(duration.toFixed(0)),
+        cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
+        carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
+        pricingFairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
       } as InsertRide);
       
       res.status(201).json(ride);
@@ -399,8 +428,9 @@ export async function registerRoutes(
       const rides = await storage.getRidesByUser(userId);
       return res.json(rides);
     }
-    // If no user, maybe admin? Or just return empty for safety if not admin auth'd (omitted for MVP)
-    res.json([]);
+    // Return all rides if no userId (for driver/admin views)
+    const allRides = await storage.getAllRides();
+    res.json(allRides);
   });
   
   app.get(api.rides.get.path, async (req, res) => {
@@ -474,6 +504,14 @@ export async function registerRoutes(
       if (!rideId || !passengerId || !stars || stars < 1 || stars > 5) {
         return res.status(400).json({ message: "Invalid rating data" });
       }
+      
+      // Prevent duplicate ratings for the same ride
+      const existingRatings = await storage.getRatingsByRide(rideId);
+      const alreadyRated = existingRatings.some(r => r.passengerId === passengerId);
+      if (alreadyRated) {
+        return res.status(409).json({ message: "You have already rated this ride" });
+      }
+      
       const rating = await storage.createRating({
         rideId,
         passengerId,
@@ -567,6 +605,10 @@ export async function registerRoutes(
       if (!rideId || !userId || !amount || !method) {
         return res.status(400).json({ message: "Missing payment details" });
       }
+      
+      // Generate txn ID upfront so client and server are in sync
+      const txnId = `TXN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      
       const payment = await storage.createPayment({
         rideId,
         userId,
@@ -575,22 +617,24 @@ export async function registerRoutes(
         breakdown: breakdown || null,
       });
 
-      // Simulate payment processing
+      // Simulate payment processing — update status after delay
       setTimeout(async () => {
-        const txnId = `TXN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-        await storage.updatePaymentStatus(payment.id, "completed", txnId);
-        
-        // Create payment confirmation notification
-        await storage.createNotification({
-          userId,
-          type: "payment",
-          title: "Payment Successful",
-          message: `₹${amount.toFixed(2)} paid via ${method.toUpperCase()}. Txn: ${txnId}`,
-          rideId,
-        });
+        try {
+          await storage.updatePaymentStatus(payment.id, "completed", txnId);
+          await storage.createNotification({
+            userId,
+            type: "payment",
+            title: "Payment Successful",
+            message: `₹${Number(amount).toFixed(2)} paid via ${method.toUpperCase()}. Txn: ${txnId}`,
+            rideId,
+          });
+        } catch (err) {
+          console.error("Payment processing error:", err);
+        }
       }, 1500);
 
-      res.status(201).json(payment);
+      // Return payment with txn ID so client can show it immediately
+      res.status(201).json({ ...payment, transactionId: txnId });
     } catch (e) {
       console.error("Payment error:", e);
       res.status(500).json({ message: "Payment failed" });
@@ -682,15 +726,53 @@ export async function registerRoutes(
   });
 
   // ============================================
-  // NEW FEATURE: CHAT MESSAGES
+  // NEW FEATURE: CHAT MESSAGES + AI CHATBOT
   // ============================================
+  
+  // AI Bot auto-reply logic
+  function getAIBotReply(message: string): string {
+    const msg = message.toLowerCase();
+    
+    if (msg.includes("eta") || msg.includes("how long") || msg.includes("time") || msg.includes("when")) {
+      return "Based on current traffic conditions, estimated arrival is 4-6 minutes. I'll keep you updated! 🚗";
+    }
+    if (msg.includes("where") || msg.includes("location") || msg.includes("position")) {
+      return "Your driver is currently en route and making good progress. You can track the live position on the map above! 📍";
+    }
+    if (msg.includes("cancel") || msg.includes("stop")) {
+      return "I understand you'd like to cancel. Please use the cancel button in the ride tracker, or I can connect you with support. Would you like help with anything else?";
+    }
+    if (msg.includes("payment") || msg.includes("pay") || msg.includes("fare") || msg.includes("cost") || msg.includes("price")) {
+      return "Payment will be processed when your ride is complete. We support UPI, Cards, Wallets, and Cash. The fare shown includes all applicable charges. 💳";
+    }
+    if (msg.includes("safe") || msg.includes("emergency") || msg.includes("help")) {
+      return "Your safety is our top priority! 🛡️ In case of emergency, please call 112 directly. You can also use the SOS feature. Your ride is being tracked in real-time.";
+    }
+    if (msg.includes("hello") || msg.includes("hi") || msg.includes("hey")) {
+      return "Hello! 👋 I'm SmartRide AI Assistant. I can help you with ride status, ETA, payment info, and more. How can I assist you?";
+    }
+    if (msg.includes("thank") || msg.includes("thanks")) {
+      return "You're welcome! Happy to help. Enjoy your ride! 😊";
+    }
+    if (msg.includes("route") || msg.includes("way") || msg.includes("path") || msg.includes("traffic")) {
+      return "Your driver is taking the optimal route based on real-time traffic. Current traffic conditions are moderate. 🗺️";
+    }
+    if (msg.includes("rating") || msg.includes("review") || msg.includes("rate")) {
+      return "You'll be able to rate your driver after the ride is complete. Your feedback helps us improve the service! ⭐";
+    }
+    if (msg.includes("driver") || msg.includes("name")) {
+      return "Your driver's details are shown in the ride tracker above. They've been verified and have excellent ratings! 🏅";
+    }
+    // Default intelligent response
+    return "Thanks for your message! I'm SmartRide AI — I can help with ride status, ETA, payment, safety, and more. What would you like to know? 🤖";
+  }
+
   app.post("/api/chat/send", async (req, res) => {
     try {
       const { rideId, senderId, senderRole, message } = req.body;
       if (!rideId || !senderId || !message) {
         return res.status(400).json({ message: "Missing chat data" });
       }
-      // Use the simulated in-memory store for chat (since we have conversations table)
       const chatMessage = {
         id: Date.now(),
         rideId,
@@ -700,9 +782,21 @@ export async function registerRoutes(
         timestamp: new Date().toISOString(),
       };
       
-      // Store in memory for demo
       if (!chatStore[rideId]) chatStore[rideId] = [];
       chatStore[rideId].push(chatMessage);
+
+      // AI auto-reply for passenger messages
+      if (senderRole === "passenger" || !senderRole) {
+        const aiReply = {
+          id: Date.now() + 1,
+          rideId,
+          senderId: 0, // AI bot
+          senderRole: "driver" as const,
+          message: getAIBotReply(message),
+          timestamp: new Date(Date.now() + 1000).toISOString(),
+        };
+        chatStore[rideId].push(aiReply);
+      }
 
       res.status(201).json(chatMessage);
     } catch (e) {

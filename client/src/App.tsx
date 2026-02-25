@@ -132,7 +132,7 @@ function App() {
 
                     <div className="flex items-center gap-4">
                       {/* Notifications */}
-                      <NotificationCenter userId={1} />
+                      <NotificationCenter userId={0} />
                       {/* Theme Toggle - Clean & Professional */}
                       <ThemeToggle />
                       <RoleSwitcher currentRole={role} onChange={setRole} />

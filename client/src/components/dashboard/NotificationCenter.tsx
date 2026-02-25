@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, BellRing, Check, CheckCheck, X, Car, CreditCard, Megaphone, Settings, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotifications, useUnreadCount, useMarkRead, useMarkAllRead, type NotificationItem } from "@/hooks/use-notifications";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NotificationCenterProps {
-  userId: number;
+  userId?: number;
 }
 
 const typeIcons: Record<string, any> = {
@@ -24,7 +25,9 @@ const typeColors: Record<string, string> = {
   system: "text-slate-400 bg-slate-500/10",
 };
 
-export default function NotificationCenter({ userId }: NotificationCenterProps) {
+export default function NotificationCenter({ userId: propUserId }: NotificationCenterProps) {
+  const { user } = useAuth();
+  const userId = user?.id ?? propUserId ?? 1;
   const [isOpen, setIsOpen] = useState(false);
   const { data: notifications = [] } = useNotifications(userId);
   const { data: unreadData } = useUnreadCount(userId);
