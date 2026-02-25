@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -27,7 +28,7 @@ import {
 import { CITY_LIST } from "@shared/cities";
 
 interface HomeProps {
-  onGetStarted: () => void;
+  onGetStarted?: () => void;
 }
 
 const containerVariants = {
@@ -52,6 +53,12 @@ const itemVariants = {
 
 export default function Home({ onGetStarted }: HomeProps) {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [, navigate] = useLocation();
+  
+  const handleGetStarted = () => {
+    if (onGetStarted) onGetStarted();
+    else navigate("/login");
+  };
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-background via-background to-primary/5">
@@ -131,7 +138,7 @@ export default function Home({ onGetStarted }: HomeProps) {
             {/* CTA Button with Pulse */}
             <motion.div variants={itemVariants}>
               <Button
-                onClick={onGetStarted}
+                onClick={handleGetStarted}
                 size="lg"
                 className="relative bg-gradient-to-r from-primary via-emerald-400 to-cyan-400 hover:from-primary/90 hover:via-emerald-400/90 hover:to-cyan-400/90 text-black font-bold text-xl h-16 px-12 shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-shadow duration-150 overflow-hidden group"
               >
@@ -750,7 +757,7 @@ export default function Home({ onGetStarted }: HomeProps) {
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
             <Button
-              onClick={onGetStarted}
+              onClick={handleGetStarted}
               size="lg"
               className="relative bg-gradient-to-r from-primary via-emerald-400 to-cyan-400 hover:from-primary/90 hover:via-emerald-400/90 hover:to-cyan-400/90 text-black font-bold text-lg h-14 px-10 shadow-2xl shadow-primary/40 hover:shadow-primary/60 transition-shadow duration-150"
             >

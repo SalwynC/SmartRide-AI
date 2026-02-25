@@ -1,19 +1,16 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogIn, Car, Mail, Lock } from "lucide-react";
 
-interface LoginProps {
-  onSuccess: () => void;
-  onSwitchToSignup: () => void;
-}
-
-export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
+export default function Login() {
   const { login } = useAuth();
+  const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +23,7 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
     
     setIsLoading(false);
     if (success) {
-      onSuccess();
+      navigate("/dashboard");
     }
   };
 
@@ -124,7 +121,7 @@ export default function Login({ onSuccess, onSwitchToSignup }: LoginProps) {
               <p className="text-muted-foreground text-sm">
                 Don't have an account?{" "}
                 <button
-                  onClick={onSwitchToSignup}
+                  onClick={() => navigate("/signup")}
                   className="text-primary hover:text-primary/80 font-semibold underline-offset-4 hover:underline"
                 >
                   Sign up

@@ -115,7 +115,7 @@ export default function RideHistory({ userId, onBack }: RideHistoryProps) {
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                     <XAxis dataKey="month" stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0b0f14", borderColor: "#1f2a37" }} itemStyle={{ color: "#e5e7eb" }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} itemStyle={{ color: 'hsl(var(--foreground))' }} />
                     <Area type="monotone" dataKey="amount" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorSpending)" />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -137,9 +137,9 @@ export default function RideHistory({ userId, onBack }: RideHistoryProps) {
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" horizontal={false} />
                     <XAxis type="number" stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis dataKey="route" type="category" stroke="#ffffff50" fontSize={10} tickLine={false} axisLine={false} width={140} />
-                    <Tooltip contentStyle={{ backgroundColor: "#0b0f14", borderColor: "#1f2a37" }} itemStyle={{ color: "#e5e7eb" }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} itemStyle={{ color: 'hsl(var(--foreground))' }} />
                     <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={24}>
-                      {analytics.popularRoutes.map((_: any, i: number) => (
+                      {analytics.popularRoutes.map((_: { route: string; count: number }, i: number) => (
                         <Cell key={i} fill={["#14b8a6", "#3b82f6", "#8b5cf6", "#f59e0b", "#ec4899"][i % 5]} />
                       ))}
                     </Bar>
@@ -162,7 +162,7 @@ export default function RideHistory({ userId, onBack }: RideHistoryProps) {
               {analytics.rides.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">No rides yet. Book your first ride!</p>
               ) : (
-                analytics.rides.map((ride: any) => (
+                analytics.rides.map((ride: { id: number; pickupAddress: string; dropAddress: string; createdAt: string; distanceKm: number; finalFare: number; status: string; surgeMultiplier: number }) => (
                   <motion.div
                     key={ride.id}
                     initial={{ opacity: 0 }}

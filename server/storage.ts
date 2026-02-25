@@ -11,7 +11,6 @@ import {
   type User,
   type InsertUser,
   type Ride,
-  type InsertRide,
   type Zone,
   type InsertZone,
   type Rating,
@@ -25,17 +24,22 @@ import {
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
+/** Full insert type for rides — includes backend-calculated fields omitted from the client-facing InsertRide */
+type CreateRideInput = typeof rides.$inferInsert;
+
 export interface IStorage {
   // Users
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, data: Partial<InsertUser>): Promise<User>;
   
   // Rides
   getRide(id: number): Promise<Ride | undefined>;
   getRidesByUser(userId: number): Promise<Ride[]>;
-  createRide(ride: InsertRide): Promise<Ride>;
+  createRide(ride: CreateRideInput): Promise<Ride>;
   updateRideStatus(id: number, status: string): Promise<Ride>;
   getAllRides(): Promise<Ride[]>;
   
@@ -77,12 +81,22 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
   async getUsers(): Promise<User[]> {
     return db.select().from(users);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUser(id: number, data: Partial<InsertUser>): Promise<User> {
+    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }
 
@@ -100,7 +114,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(rides.createdAt));
   }
 
-  async createRide(insertRide: InsertRide): Promise<Ride> {
+  async createRide(insertRide: CreateRideInput): Promise<Ride> {
     const [ride] = await db.insert(rides).values(insertRide).returning();
     return ride;
   }
@@ -203,7 +217,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePaymentStatus(id: number, status: "pending" | "completed" | "failed" | "refunded", transactionId?: string): Promise<Payment> {
-    const update: any = { status };
+    const update: { status: "pending" | "completed" | "failed" | "refunded"; transactionId?: string } = { status };
     if (transactionId) update.transactionId = transactionId;
     const [payment] = await db.update(payments).set(update).where(eq(payments.id, id)).returning();
     return payment;

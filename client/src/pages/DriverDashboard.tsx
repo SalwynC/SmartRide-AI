@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useZones } from "@/hooks/use-zones";
 import { useAdminStats } from "@/hooks/use-admin";
-import { useRides } from "@/hooks/use-rides";
+import { useAllRides } from "@/hooks/use-rides";
 import { useUpdateRideStatus } from "@/hooks/use-tracking";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,7 @@ import { MapPin, TrendingUp, Users, DollarSign, CheckCircle, XCircle, Navigation
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { useToast } from "@/hooks/use-toast";
-
-const driverId = 2; // Simulated driver ID
+import { useAuth } from "@/contexts/AuthContext";
 
 const mockEarningsTrend = [
   { time: "10:00", value: 18 },
@@ -24,9 +23,11 @@ const mockEarningsTrend = [
 ];
 
 export default function DriverDashboard() {
+  const { user } = useAuth();
+  const driverId = user?.id ?? 2;
   const { data: zones, isLoading: loadingZones, error: zonesError } = useZones();
   const { data: stats, error: statsError } = useAdminStats();
-  const { data: allRides } = useRides(undefined); // Fetch all rides
+  const { data: allRides } = useAllRides();
   const updateStatus = useUpdateRideStatus();
   const { toast } = useToast();
 

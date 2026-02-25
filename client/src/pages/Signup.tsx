@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,13 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { UserPlus, Car, User, Mail, Lock, Phone, Users } from "lucide-react";
 
-interface SignupProps {
-  onSuccess: () => void;
-  onSwitchToLogin: () => void;
-}
-
-export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
+export default function Signup() {
   const { signup } = useAuth();
+  const [, navigate] = useLocation();
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -52,7 +49,7 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
     
     setIsLoading(false);
     if (success) {
-      onSuccess();
+      navigate("/login");
     }
   };
 
@@ -232,7 +229,7 @@ export default function Signup({ onSuccess, onSwitchToLogin }: SignupProps) {
               <p className="text-muted-foreground text-sm">
                 Already have an account?{" "}
                 <button
-                  onClick={onSwitchToLogin}
+                  onClick={() => navigate("/login")}
                   className="text-primary hover:text-primary/80 font-semibold underline-offset-4 hover:underline"
                 >
                   Sign in

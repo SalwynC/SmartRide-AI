@@ -1,4 +1,4 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 
@@ -12,7 +12,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 let pool: pg.Pool;
-let db: any;
+let db: NodePgDatabase<typeof schema>;
 
 try {
   pool = new Pool({ 
@@ -22,7 +22,7 @@ try {
     connectionTimeoutMillis: 20000, // Increased from 10s to 20s for remote Neon DB
   });
 
-  pool.on("error", (err) => {
+  pool.on("error", (err: Error) => {
     console.error("❌ Unexpected error on idle client", err);
     process.exit(-1);
   });

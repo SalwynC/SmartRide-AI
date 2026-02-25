@@ -55,6 +55,17 @@ export default function PassengerDashboard() {
   async function onGetQuote(data: z.infer<typeof bookingRequestSchema>) {
     try {
       if (quoteMutation.isPending) return;
+      
+      // Prevent same pickup and drop
+      if (data.pickupAddress === data.dropAddress) {
+        toast({
+          title: "Invalid Route",
+          description: "Pickup and drop-off locations cannot be the same.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const result = await quoteMutation.mutateAsync(data);
       setQuote(result);
       

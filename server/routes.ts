@@ -1,9 +1,8 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api, bookingRequestSchema } from "@shared/routes";
 import { z } from "zod";
-import { type InsertRide } from "@shared/schema";
 import { INDIAN_CITIES, getCityInfo } from "@shared/cities";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
@@ -107,6 +106,30 @@ export async function registerRoutes(
   // Seed DB on startup
   seedDatabase().catch(console.error);
 
+  // --- AUTH MIDDLEWARE (lightweight — checks x-user-id header) ---
+  // In production, replace with JWT verification
+  async function requireAuth(req: Request, res: Response, next: NextFunction) {
+    const userId = req.headers["x-user-id"];
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    const user = await storage.getUser(Number(userId));
+    if (!user) {
+      return res.status(401).json({ message: "Invalid user" });
+    }
+    (req as any).authenticatedUser = user;
+    next();
+  }
+
+  async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+    await requireAuth(req, res, (() => {
+      if ((req as any).authenticatedUser?.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      next();
+    }) as NextFunction);
+  }
+
   // --- AUTHENTICATION ---
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -158,26 +181,20 @@ export async function registerRoutes(
     try {
       const { email, password } = req.body;
 
-      // Get user by email (need to add this to storage)
-      const users = await storage.getUsers();
-      const user = users.find(u => u.email === email);
+      // Look up user by email directly (indexed query)
+      const user = await storage.getUserByEmail(email);
 
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      // Check password
+      // Check password with bcrypt
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      // Check if email is verified (optional - you can enforce this or not)
-      // if (!user.emailVerified) {
-      //   return res.status(403).json({ message: "Please verify your email first" });
-      // }
-
-      // Return user data (excluding password)
+      // Return user data (excluding sensitive fields)
       const { password: _, verificationToken: __, ...userData } = user;
       res.json(userData);
     } catch (e) {
@@ -194,7 +211,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid verification token" });
       }
 
-      // Find user by verification token (need to add this to storage)
+      // Find user by verification token
       const users = await storage.getUsers();
       const user = users.find(u => u.verificationToken === token);
 
@@ -202,9 +219,11 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Invalid or expired token" });
       }
 
-      // Update user to verified (this requires a storage method)
-      // For now, we'll return success
-      console.log(`✅ Email verified for user: ${user.email}`);
+      // Actually update user to verified in the database
+      await storage.updateUser(user.id, { 
+        emailVerified: true, 
+        verificationToken: null 
+      });
 
       res.json({ message: "Email verified successfully!" });
     } catch (e) {
@@ -214,18 +233,7 @@ export async function registerRoutes(
   });
 
   // --- USERS ---
-  app.post(api.users.login.path, async (req, res) => {
-    try {
-      const { username, password } = req.body;
-      const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-      res.json(user);
-    } catch (e) {
-      res.status(500).json({ message: "Internal error" });
-    }
-  });
+  // Legacy plaintext login removed for security — use /api/auth/login with bcrypt instead
 
   app.post(api.users.register.path, async (req, res) => {
     try {
@@ -410,7 +418,7 @@ export async function registerRoutes(
         cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
         carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
         pricingFairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
-      } as InsertRide);
+      });
       
       res.status(201).json(ride);
     } catch (e) {
@@ -440,7 +448,7 @@ export async function registerRoutes(
   });
 
   // --- ADMIN ---
-  app.get(api.admin.stats.path, async (req, res) => {
+  app.get(api.admin.stats.path, requireAdmin, async (req, res) => {
     const allRides = await storage.getAllRides();
     const zones = await storage.getZones();
     
@@ -459,7 +467,7 @@ export async function registerRoutes(
   });
 
   // --- ADMIN: Reset Zones (for demo/development) ---
-  app.post("/api/admin/reset-zones", async (req, res) => {
+  app.post("/api/admin/reset-zones", requireAdmin, async (req, res) => {
     try {
       // Import db and zones from storage
       const { db } = await import("./db");

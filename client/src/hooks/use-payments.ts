@@ -26,7 +26,13 @@ export function useCreatePayment() {
       userId: number;
       amount: number;
       method: string;
-      breakdown?: any;
+      breakdown?: {
+        baseFare: number;
+        surgeAmount: number;
+        tax: number;
+        discount: number;
+        total: number;
+      };
     }) => {
       const res = await fetch("/api/payments", {
         method: "POST",
