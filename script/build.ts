@@ -38,6 +38,9 @@ async function buildAll() {
     define: {
       "process.env.NODE_ENV": '"production"',
     },
+    logOverride: {
+      "empty-import-meta": "silent",
+    },
     minify: true,
     external: externals,
     logLevel: "info",

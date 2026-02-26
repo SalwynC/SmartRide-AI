@@ -1,41 +1,44 @@
 import { useAdminStats } from "@/hooks/use-admin";
+import { useQuery } from "@tanstack/react-query";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, RadialBarChart, RadialBar, PieChart, Pie } from "recharts";
 import { Activity, Users, DollarSign, Zap } from "lucide-react";
 
-// Mock data for charts since backend only returns aggregates
-const mockTrafficData = [
-  { time: "08:00", demand: 40 },
-  { time: "10:00", demand: 65 },
-  { time: "12:00", demand: 85 },
-  { time: "14:00", demand: 55 },
-  { time: "16:00", demand: 70 },
-  { time: "18:00", demand: 95 },
-  { time: "20:00", demand: 80 },
-];
-
-const mockWaitTimes = [
-  { zone: "Downtown", minutes: 3.5 },
-  { zone: "Airport", minutes: 8.2 },
-  { zone: "Suburbs", minutes: 12.5 },
-  { zone: "Tech Park", minutes: 4.1 },
-];
-
-const mockUtilization = [
-  { name: "Active", value: 68, fill: "#14b8a6" },
-  { name: "Idle", value: 22, fill: "#f59e0b" },
-  { name: "Offline", value: 10, fill: "#64748b" },
-];
-
-const mockRevenueMix = [
-  { name: "Standard", value: 62, fill: "#14b8a6" },
-  { name: "Surge", value: 28, fill: "#f59e0b" },
-  { name: "Promo", value: 10, fill: "#38bdf8" },
-];
+// Hook for real analytics chart data
+function useAdminAnalytics() {
+  return useQuery({
+    queryKey: ["/api/admin/analytics"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/analytics", {
+        headers: { "x-user-id": "1" },
+      });
+      if (!res.ok) throw new Error("Failed to fetch analytics");
+      return res.json() as Promise<{
+        demandByHour: { time: string; demand: number }[];
+        waitByZone: { zone: string; minutes: number }[];
+        fleetUtilization: { name: string; value: number; fill: string }[];
+        revenueMix: { name: string; value: number; fill: string }[];
+      }>;
+    },
+    refetchInterval: 10000,
+  });
+}
 
 export default function AdminDashboard() {
   const { data: stats, isLoading, error } = useAdminStats();
+  const { data: analytics } = useAdminAnalytics();
+
+  // Fallback data while analytics loads
+  const demandData = analytics?.demandByHour ?? [];
+  const waitData = analytics?.waitByZone ?? [];
+  const utilizationData = analytics?.fleetUtilization ?? [
+    { name: "Active", value: 0, fill: "#14b8a6" },
+    { name: "Idle", value: 0, fill: "#f59e0b" },
+    { name: "Offline", value: 100, fill: "#64748b" },
+  ];
+  const revenueData = analytics?.revenueMix ?? [];
+  const activePercent = utilizationData.find(d => d.name === "Active")?.value ?? 0;
 
   if (isLoading) return (
     <div className="space-y-6">
@@ -109,7 +112,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mockTrafficData}>
+              <AreaChart data={demandData}>
                 <defs>
                   <linearGradient id="colorDemand" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35}/>
@@ -136,7 +139,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockWaitTimes} layout="vertical" margin={{ left: 20 }}>
+              <BarChart data={waitData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" horizontal={false} />
                 <XAxis type="number" stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis dataKey="zone" type="category" stroke="#ffffff50" fontSize={12} tickLine={false} axisLine={false} width={80} />
@@ -146,7 +149,7 @@ export default function AdminDashboard() {
                   itemStyle={{ color: 'hsl(var(--foreground))' }}
                 />
                 <Bar dataKey="minutes" radius={[0, 4, 4, 0]} barSize={30}>
-                  {mockWaitTimes.map((entry, index) => (
+                  {waitData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.minutes > 10 ? '#f97316' : entry.minutes > 5 ? '#f59e0b' : '#14b8a6'} />
                   ))}
                 </Bar>
@@ -163,12 +166,12 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="h-[240px] relative">
             <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart innerRadius="40%" outerRadius="90%" data={mockUtilization} startAngle={180} endAngle={-180}>
+              <RadialBarChart innerRadius="40%" outerRadius="90%" data={utilizationData} startAngle={180} endAngle={-180}>
                 <RadialBar dataKey="value" cornerRadius={6} />
               </RadialBarChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <div className="text-3xl font-display text-foreground">68%</div>
+              <div className="text-3xl font-display text-foreground">{activePercent}%</div>
               <div className="text-xs text-muted-foreground uppercase tracking-widest">Active</div>
             </div>
           </CardContent>
@@ -181,7 +184,7 @@ export default function AdminDashboard() {
           <CardContent className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={mockRevenueMix} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={6} />
+                <Pie data={revenueData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={6} />
                 <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} itemStyle={{ color: 'hsl(var(--foreground))' }} />
               </PieChart>
             </ResponsiveContainer>

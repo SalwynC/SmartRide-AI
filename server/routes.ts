@@ -43,6 +43,88 @@ function calculateCancellationProb(waitTime: number, surge: number): number {
   return Math.min(0.9, (waitTime * 0.05) + ((surge - 1) * 0.2));
 }
 
+// --- CITY DETECTION from address string ---
+function detectCityKey(address: string): string {
+  const lower = address.toLowerCase();
+  if (lower.includes("mumbai") || lower.includes("bandra") || lower.includes("andheri")) return "mumbai";
+  if (lower.includes("bangalore") || lower.includes("bengaluru") || lower.includes("koramangala")) return "bangalore";
+  if (lower.includes("hyderabad") || lower.includes("hitec") || lower.includes("gachibowli")) return "hyderabad";
+  if (lower.includes("chennai") || lower.includes("nagar")) return "chennai";
+  if (lower.includes("pune") || lower.includes("hinjewadi") || lower.includes("kharadi")) return "pune";
+  if (lower.includes("kolkata") || lower.includes("salt lake") || lower.includes("park street")) return "kolkata";
+  return "delhi";
+}
+
+// --- UNIFIED FARE CALCULATION ---
+interface FareInput {
+  pickupAddress: string;
+  dropAddress: string;
+  distanceKm: number;
+  simulatedPeak?: boolean;
+  simulatedTraffic?: number;
+}
+interface FareResult {
+  distanceKm: number;
+  baseFare: number;
+  surgeMultiplier: number;
+  finalFare: number;
+  predictedWaitTime: number;
+  predictedDuration: number;
+  carbonEmissions: number;
+  cancellationProb: number;
+  fairnessScore: number;
+  trafficIndex: number;
+  isPeak: boolean;
+  city: string;
+  routeCalculated: boolean;
+}
+async function calculateFare(input: FareInput): Promise<FareResult> {
+  const cityKey = detectCityKey(input.pickupAddress);
+  const cityInfo = getCityInfo(cityKey);
+
+  // Smart routing: calculate real distance from zone coordinates
+  let realDistance = input.distanceKm;
+  const zones = await storage.getZones();
+  const pickupZone = zones.find(z => z.name === input.pickupAddress);
+  const dropZone = zones.find(z => z.name === input.dropAddress);
+
+  if (pickupZone && dropZone) {
+    realDistance = calculateDistance(pickupZone.lat, pickupZone.lng, dropZone.lat, dropZone.lng);
+  }
+
+  const isPeak = input.simulatedPeak ?? (new Date().getHours() >= 17 && new Date().getHours() <= 19);
+  const traffic = input.simulatedTraffic ?? 5.0;
+
+  const demand = isPeak ? 150 : 50;
+  const supply = 30;
+  const ratio = demand / supply;
+  let surge = 1.0;
+  if (ratio > 1.5) surge += 0.3;
+  if (isPeak) surge += 0.15;
+  if (traffic > 7) surge += 0.1;
+
+  const distanceCost = realDistance * cityInfo.ratePerKm;
+  const finalFare = (cityInfo.baseFare + distanceCost) * surge;
+  const waitTime = predictWaitTime(demand, supply);
+  const duration = (realDistance / (30 / (traffic / 2 + 1))) * 60;
+
+  return {
+    distanceKm: parseFloat(realDistance.toFixed(2)),
+    baseFare: cityInfo.baseFare,
+    surgeMultiplier: parseFloat(surge.toFixed(2)),
+    finalFare: parseFloat(finalFare.toFixed(2)),
+    predictedWaitTime: parseFloat(waitTime.toFixed(1)),
+    predictedDuration: parseFloat(duration.toFixed(0)),
+    carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
+    cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
+    fairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
+    trafficIndex: traffic,
+    isPeak,
+    city: cityInfo.displayName,
+    routeCalculated: !!(pickupZone && dropZone),
+  };
+}
+
 // --- SEED DATA ---
 async function seedDatabase(retries = 3) {
   try {
@@ -141,8 +223,39 @@ export async function registerRoutes(
     };
   }
 
+  // --- RATE LIMITER for auth endpoints ---
+  const authAttempts = new Map<string, { count: number; resetAt: number }>();
+  const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+  const RATE_LIMIT_MAX = 15; // max attempts per window
+
+  function rateLimit(req: Request, res: Response, next: NextFunction) {
+    const ip = req.ip || req.headers["x-forwarded-for"]?.toString() || "unknown";
+    const now = Date.now();
+    const entry = authAttempts.get(ip);
+
+    if (entry && now < entry.resetAt) {
+      if (entry.count >= RATE_LIMIT_MAX) {
+        const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+        res.setHeader("Retry-After", String(retryAfter));
+        return res.status(429).json({ message: "Too many attempts. Try again later.", retryAfter });
+      }
+      entry.count++;
+    } else {
+      authAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    }
+
+    // Periodically clean up expired entries
+    if (authAttempts.size > 1000) {
+      Array.from(authAttempts.entries()).forEach(([key, val]) => {
+        if (now >= val.resetAt) authAttempts.delete(key);
+      });
+    }
+
+    next();
+  }
+
   // --- AUTHENTICATION ---
-  app.post("/api/auth/signup", async (req, res) => {
+  app.post("/api/auth/signup", rateLimit, async (req, res) => {
     try {
       const { username, email, password, role, phoneNumber } = req.body;
 
@@ -193,7 +306,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", rateLimit, async (req, res) => {
     try {
       const { email, password } = req.body;
 
@@ -328,77 +441,8 @@ export async function registerRoutes(
   app.post(api.rides.predict.path, async (req, res) => {
     try {
       const input = bookingRequestSchema.parse(req.body);
-      
-      // Detect city from pickup address (default to Delhi)
-      let cityKey = "delhi";
-      const pickupLower = input.pickupAddress.toLowerCase();
-      
-      if (pickupLower.includes("mumbai") || pickupLower.includes("bandra") || pickupLower.includes("andheri")) cityKey = "mumbai";
-      else if (pickupLower.includes("bangalore") || pickupLower.includes("bengaluru") || pickupLower.includes("koramangala")) cityKey = "bangalore";
-      else if (pickupLower.includes("hyderabad") || pickupLower.includes("hitec") || pickupLower.includes("gachibowli")) cityKey = "hyderabad";
-      else if (pickupLower.includes("chennai") || pickupLower.includes("nagar")) cityKey = "chennai";
-      else if (pickupLower.includes("pune") || pickupLower.includes("hinjewadi") || pickupLower.includes("kharadi")) cityKey = "pune";
-      else if (pickupLower.includes("kolkata") || pickupLower.includes("salt lake") || pickupLower.includes("park street")) cityKey = "kolkata";
-      
-      const cityInfo = getCityInfo(cityKey);
-      
-      // 🎯 SMART ROUTING: Calculate real distance from zone coordinates
-      let realDistance = input.distanceKm; // Fallback to user's slider value
-      const zones = await storage.getZones();
-      
-      const pickupZone = zones.find(z => z.name === input.pickupAddress);
-      const dropZone = zones.find(z => z.name === input.dropAddress);
-      
-      if (pickupZone && dropZone) {
-        // Calculate actual distance using Haversine formula
-        realDistance = calculateDistance(
-          pickupZone.lat,
-          pickupZone.lng,
-          dropZone.lat,
-          dropZone.lng
-        );
-        console.log(`📍 Smart Route: ${pickupZone.name} → ${dropZone.name} = ${realDistance.toFixed(2)} km (actual)`);
-      }
-      
-      // Simulation Logic
-      const isPeak = input.simulatedPeak ?? (new Date().getHours() >= 17 && new Date().getHours() <= 19); // Default peak 5-7pm
-      const traffic = input.simulatedTraffic ?? 5.0; // Default medium traffic
-      
-      const demand = isPeak ? 150 : 50; // Requests per hour
-      const supply = 30; // Available drivers
-      
-      const ratio = demand / supply;
-      let surge = 1.0;
-      if (ratio > 1.5) surge += 0.3;
-      if (isPeak) surge += 0.15;
-      if (traffic > 7) surge += 0.1;
-
-      const baseRatePerKm = cityInfo.ratePerKm; // City-specific rate
-      const baseFare = cityInfo.baseFare; // City-specific base fare
-
-      const distanceCost = realDistance * baseRatePerKm; // Using real calculated distance
-      const finalFare = (baseFare + distanceCost) * surge;
-
-      const waitTime = predictWaitTime(demand, supply);
-      const duration = (realDistance / (30 / (traffic/2 + 1))) * 60; // Speed adjusted by traffic
-
-      const quote = {
-        distanceKm: parseFloat(realDistance.toFixed(2)),
-        predictedWaitTime: parseFloat(waitTime.toFixed(1)),
-        predictedDuration: parseFloat(duration.toFixed(0)),
-        baseFare: baseFare,
-        surgeMultiplier: parseFloat(surge.toFixed(2)),
-        finalFare: parseFloat(finalFare.toFixed(2)),
-        carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
-        cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
-        fairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
-        trafficIndex: traffic,
-        isPeak: isPeak,
-        city: cityInfo.displayName,
-        routeCalculated: !!(pickupZone && dropZone) // Flag to show if real coordinates were used
-      };
-
-      res.json(quote);
+      const fare = await calculateFare(input);
+      res.json(fare);
     } catch (e) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message });
@@ -411,59 +455,21 @@ export async function registerRoutes(
   app.post(api.rides.create.path, requireRole("passenger"), async (req, res) => {
     try {
       const input = bookingRequestSchema.parse(req.body);
-      
-      // Detect city from pickup address (same logic as predict)
-      let cityKey = "delhi";
-      const pickupLower = input.pickupAddress.toLowerCase();
-      if (pickupLower.includes("mumbai") || pickupLower.includes("bandra") || pickupLower.includes("andheri")) cityKey = "mumbai";
-      else if (pickupLower.includes("bangalore") || pickupLower.includes("bengaluru") || pickupLower.includes("koramangala")) cityKey = "bangalore";
-      else if (pickupLower.includes("hyderabad") || pickupLower.includes("hitec") || pickupLower.includes("gachibowli")) cityKey = "hyderabad";
-      else if (pickupLower.includes("chennai") || pickupLower.includes("nagar")) cityKey = "chennai";
-      else if (pickupLower.includes("pune") || pickupLower.includes("hinjewadi") || pickupLower.includes("kharadi")) cityKey = "pune";
-      else if (pickupLower.includes("kolkata") || pickupLower.includes("salt lake") || pickupLower.includes("park street")) cityKey = "kolkata";
-      
-      const cityInfo = getCityInfo(cityKey);
-      
-      // Calculate real distance using Haversine (same as predict)
-      let realDistance = input.distanceKm;
-      const zones = await storage.getZones();
-      const pickupZone = zones.find(z => z.name === input.pickupAddress);
-      const dropZone = zones.find(z => z.name === input.dropAddress);
-      
-      if (pickupZone && dropZone) {
-        realDistance = calculateDistance(pickupZone.lat, pickupZone.lng, dropZone.lat, dropZone.lng);
-      }
-      
-      // Re-calculate fare with city-specific pricing (server-side truth)
-      const isPeak = input.simulatedPeak ?? (new Date().getHours() >= 17 && new Date().getHours() <= 19);
-      const traffic = input.simulatedTraffic ?? 5.0;
-      
-      const demand = isPeak ? 150 : 50;
-      const supply = 30;
-      const ratio = demand / supply;
-      let surge = 1.0;
-      if (ratio > 1.5) surge += 0.3;
-      if (isPeak) surge += 0.15;
-      if (traffic > 7) surge += 0.1;
-
-      const distanceCost = realDistance * cityInfo.ratePerKm;
-      const finalFare = (cityInfo.baseFare + distanceCost) * surge;
-      const waitTime = predictWaitTime(demand, supply);
-      const duration = (realDistance / (30 / (traffic / 2 + 1))) * 60;
+      const fare = await calculateFare(input);
       
       const ride = await storage.createRide({
         passengerId: input.passengerId,
         pickupAddress: input.pickupAddress,
         dropAddress: input.dropAddress,
-        distanceKm: parseFloat(realDistance.toFixed(2)),
-        baseFare: cityInfo.baseFare,
-        surgeMultiplier: parseFloat(surge.toFixed(2)),
-        finalFare: parseFloat(finalFare.toFixed(2)),
-        predictedWaitTime: parseFloat(waitTime.toFixed(1)),
-        predictedDuration: parseFloat(duration.toFixed(0)),
-        cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
-        carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
-        pricingFairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
+        distanceKm: fare.distanceKm,
+        baseFare: fare.baseFare,
+        surgeMultiplier: fare.surgeMultiplier,
+        finalFare: fare.finalFare,
+        predictedWaitTime: fare.predictedWaitTime,
+        predictedDuration: fare.predictedDuration,
+        cancellationProb: fare.cancellationProb,
+        carbonEmissions: fare.carbonEmissions,
+        pricingFairnessScore: fare.fairnessScore,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       });
       
@@ -514,14 +520,83 @@ export async function registerRoutes(
     const revenue = allRides.reduce((acc, r) => acc + r.finalFare, 0);
     const avgSurge = allRides.length ? allRides.reduce((acc, r) => acc + (r.surgeMultiplier || 1), 0) / allRides.length : 1;
     
+    // Real driver count from DB
+    const users = await storage.getUsers();
+    const activeDrivers = users.filter(u => u.role === "driver").length;
+    
+    // Real avg wait time from rides
+    const ridesWithWait = allRides.filter(r => (r.predictedWaitTime ?? 0) > 0);
+    const avgWaitTime = ridesWithWait.length
+      ? ridesWithWait.reduce((sum, r) => sum + (r.predictedWaitTime ?? 0), 0) / ridesWithWait.length
+      : 0;
+    
     res.json({
       totalRides,
-      activeDrivers: 42, // Mock
+      activeDrivers,
       revenue: parseFloat(revenue.toFixed(2)),
       avgSurge: parseFloat(avgSurge.toFixed(2)),
-      avgWaitTime: 4.5, // Mock
+      avgWaitTime: parseFloat(avgWaitTime.toFixed(1)),
       zoneStats: zones
     });
+  });
+
+  // --- ADMIN: Real-time analytics charts data ---
+  app.get("/api/admin/analytics", requireAdmin, async (req, res) => {
+    const allRides = await storage.getAllRides();
+    const zones = await storage.getZones();
+
+    // 1) Demand by time-of-day: bucket rides by creation hour
+    const hourBuckets: Record<string, number> = {};
+    for (let h = 6; h <= 22; h += 2) {
+      const label = `${h.toString().padStart(2, "0")}:00`;
+      hourBuckets[label] = 0;
+    }
+    for (const ride of allRides) {
+      const hr = new Date(ride.createdAt!).getHours();
+      const bucket = Math.floor(hr / 2) * 2;
+      const clamped = Math.min(22, Math.max(6, bucket));
+      const label = `${clamped.toString().padStart(2, "0")}:00`;
+      hourBuckets[label] = (hourBuckets[label] || 0) + 1;
+    }
+    const demandByHour = Object.entries(hourBuckets).map(([time, demand]) => ({ time, demand }));
+
+    // 2) Wait times by zone: use real ride data matched to zones
+    const zoneWaitMap: Record<string, { total: number; count: number }> = {};
+    for (const ride of allRides) {
+      const zone = ride.pickupAddress;
+      if (!zoneWaitMap[zone]) zoneWaitMap[zone] = { total: 0, count: 0 };
+      zoneWaitMap[zone].total += ride.predictedWaitTime ?? 0;
+      zoneWaitMap[zone].count += 1;
+    }
+    const waitByZone = Object.entries(zoneWaitMap)
+      .map(([zone, data]) => ({ zone, minutes: parseFloat((data.total / data.count).toFixed(1)) }))
+      .sort((a, b) => b.minutes - a.minutes)
+      .slice(0, 6);
+
+    // 3) Fleet utilization from zones
+    const totalDrivers = zones.reduce((sum, z) => sum + (z.availableDrivers || 0), 0);
+    const busyDrivers = allRides.filter(r => r.status === "in_progress" || r.status === "accepted").length;
+    const activePercent = totalDrivers > 0 ? Math.round((busyDrivers / totalDrivers) * 100) : 0;
+    const idlePercent = Math.max(0, 100 - activePercent - 10);
+    const offlinePercent = 100 - activePercent - idlePercent;
+    const fleetUtilization = [
+      { name: "Active", value: activePercent, fill: "#14b8a6" },
+      { name: "Idle", value: idlePercent, fill: "#f59e0b" },
+      { name: "Offline", value: offlinePercent, fill: "#64748b" },
+    ];
+
+    // 4) Revenue mix from real rides
+    const surgeRides = allRides.filter(r => (r.surgeMultiplier || 1) > 1.1);
+    const normalRides = allRides.filter(r => (r.surgeMultiplier || 1) <= 1.1);
+    const surgeRevenue = surgeRides.reduce((s, r) => s + r.finalFare, 0);
+    const normalRevenue = normalRides.reduce((s, r) => s + r.finalFare, 0);
+    const totalRevenue = surgeRevenue + normalRevenue || 1;
+    const revenueMix = [
+      { name: "Standard", value: Math.round((normalRevenue / totalRevenue) * 100), fill: "#14b8a6" },
+      { name: "Surge", value: Math.round((surgeRevenue / totalRevenue) * 100), fill: "#f59e0b" },
+    ];
+
+    res.json({ demandByHour, waitByZone, fleetUtilization, revenueMix });
   });
 
   // --- ADMIN: Reset Zones (for demo/development) ---
@@ -618,17 +693,17 @@ export async function registerRoutes(
   // ============================================
   // NEW FEATURE: NOTIFICATIONS
   // ============================================
-  app.get("/api/notifications/:userId", async (req, res) => {
+  app.get("/api/notifications/:userId", requireAuth, async (req, res) => {
     const notifications = await storage.getNotificationsByUser(Number(req.params.userId));
     res.json(notifications);
   });
 
-  app.get("/api/notifications/:userId/unread", async (req, res) => {
+  app.get("/api/notifications/:userId/unread", requireAuth, async (req, res) => {
     const count = await storage.getUnreadCount(Number(req.params.userId));
     res.json({ count });
   });
 
-  app.patch("/api/notifications/:id/read", async (req, res) => {
+  app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
       const notification = await storage.markNotificationRead(Number(req.params.id));
       res.json(notification);
@@ -637,7 +712,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/notifications/:userId/read-all", async (req, res) => {
+  app.patch("/api/notifications/:userId/read-all", requireAuth, async (req, res) => {
     try {
       await storage.markAllRead(Number(req.params.userId));
       res.json({ message: "All notifications marked as read" });
@@ -646,7 +721,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/notifications", async (req, res) => {
+  app.post("/api/notifications", requireAuth, async (req, res) => {
     try {
       const { userId, type, title, message, rideId } = req.body;
       const notification = await storage.createNotification({
@@ -707,13 +782,13 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/payments/ride/:rideId", async (req, res) => {
+  app.get("/api/payments/ride/:rideId", requireAuth, async (req, res) => {
     const payment = await storage.getPaymentByRide(Number(req.params.rideId));
     if (!payment) return res.status(404).json({ message: "No payment found" });
     res.json(payment);
   });
 
-  app.get("/api/payments/user/:userId", async (req, res) => {
+  app.get("/api/payments/user/:userId", requireAuth, async (req, res) => {
     const payments = await storage.getPaymentsByUser(Number(req.params.userId));
     res.json(payments);
   });
@@ -952,7 +1027,7 @@ export async function registerRoutes(
     return "Thanks for your message! I'm SmartRide AI — I can help with ride status, ETA, payment, safety, and more. What would you like to know? 🤖";
   }
 
-  app.post("/api/chat/send", async (req, res) => {
+  app.post("/api/chat/send", requireAuth, async (req, res) => {
     try {
       const { rideId, senderId, senderRole, message } = req.body;
       if (!rideId || !senderId || !message) {
@@ -991,7 +1066,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/chat/:rideId", async (req, res) => {
+  app.get("/api/chat/:rideId", requireAuth, async (req, res) => {
     try {
       const rideId = Number(req.params.rideId);
       const rows = await storage.getChatMessagesByRide(rideId);
@@ -1014,7 +1089,7 @@ export async function registerRoutes(
   // ============================================
   // RIDE HISTORY & ANALYTICS
   // ============================================
-  app.get("/api/analytics/user/:userId", async (req, res) => {
+  app.get("/api/analytics/user/:userId", requireAuth, async (req, res) => {
     try {
       const userId = Number(req.params.userId);
       const rides = await storage.getRidesByUser(userId);

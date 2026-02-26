@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,14 +15,27 @@ import { Zap, LogOut, User, Car, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-import Home from "@/pages/Home";
-import Login from "@/pages/Login";
-import Signup from "@/pages/Signup";
-import NotFound from "@/pages/not-found";
-import PassengerDashboard from "@/pages/PassengerDashboard";
-import DriverDashboard from "@/pages/DriverDashboard";
-import AdminDashboard from "@/pages/AdminDashboard";
-import ProfilePage from "@/pages/ProfilePage";
+// Lazy-loaded route components for code splitting
+const Home = lazy(() => import("@/pages/Home"));
+const Login = lazy(() => import("@/pages/Login"));
+const Signup = lazy(() => import("@/pages/Signup"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const PassengerDashboard = lazy(() => import("@/pages/PassengerDashboard"));
+const DriverDashboard = lazy(() => import("@/pages/DriverDashboard"));
+const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+
+/** Minimal fallback while lazy chunks load */
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-muted-foreground">Loading…</span>
+      </div>
+    </div>
+  );
+}
 
 /** Renders the correct dashboard based on the user's actual role */
 function DashboardPage() {
@@ -180,22 +193,24 @@ function AppContent() {
 
         {/* Main Content */}
         <main className={showHeader ? "pt-20 md:pt-24 px-4 md:px-6 max-w-[1600px] mx-auto pb-12" : ""}>
-          <Switch>
-            <Route path="/"><Home /></Route>
-            <Route path="/login"><Login /></Route>
-            <Route path="/signup"><Signup /></Route>
-            <Route path="/dashboard">
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/profile">
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            </Route>
-            <Route><NotFound /></Route>
-          </Switch>
+          <Suspense fallback={<PageFallback />}>
+            <Switch>
+              <Route path="/"><Home /></Route>
+              <Route path="/login"><Login /></Route>
+              <Route path="/signup"><Signup /></Route>
+              <Route path="/dashboard">
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/profile">
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              </Route>
+              <Route><NotFound /></Route>
+            </Switch>
+          </Suspense>
         </main>
         
         <Toaster />

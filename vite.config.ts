@@ -25,12 +25,28 @@ export default defineConfig({
       include: [/node_modules/],
       transformMixedEsModules: true,
     },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom"],
+          "vendor-charts": ["recharts"],
+          "vendor-motion": ["framer-motion"],
+          "vendor-radix": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-toast",
+            "@radix-ui/react-tooltip",
+          ],
+        },
+      },
+    },
   },
   optimizeDeps: {
-    // Force Vite to pre-bundle these dependencies to avoid ESM/CommonJS issues
-    force: true,
     include: [
-      "use-sync-external-store", 
+      "use-sync-external-store",
       "use-sync-external-store/shim",
       "react",
       "react-dom",
@@ -40,12 +56,6 @@ export default defineConfig({
       "wouter",
       "@tanstack/react-query",
       "lucide-react",
-      "lodash",
-      "lodash/get",
-      "lodash/isNil",
-      "lodash/isFunction",
-      "lodash/isArray",
-      "lodash/isString",
       "recharts",
     ],
   },
