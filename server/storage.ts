@@ -7,6 +7,7 @@ import {
   notifications,
   payments,
   chatMessages,
+  driverEarnings,
   conversations,
   messages,
   type User,
@@ -22,6 +23,8 @@ import {
   type InsertPayment,
   type ChatMessage,
   type InsertChatMessage,
+  type DriverEarnings,
+  type InsertDriverEarnings,
   type Conversation,
   type Message
 } from "@shared/schema";
@@ -77,6 +80,14 @@ export interface IStorage {
   // Chat Messages
   createChatMessage(msg: InsertChatMessage): Promise<ChatMessage>;
   getChatMessagesByRide(rideId: number): Promise<ChatMessage[]>;
+
+  // Driver Earnings
+  createDriverEarning(earning: InsertDriverEarnings): Promise<DriverEarnings>;
+  getDriverEarnings(driverId: number): Promise<DriverEarnings[]>;
+  getDriverEarningsSummary(driverId: number): Promise<{ total: number; commission: number; net: number; bonus: number; count: number }>;
+
+  // Scheduled Rides
+  getScheduledRides(userId: number): Promise<Ride[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -266,6 +277,33 @@ export class DatabaseStorage implements IStorage {
 
   async getChatMessagesByRide(rideId: number): Promise<ChatMessage[]> {
     return db.select().from(chatMessages).where(eq(chatMessages.rideId, rideId));
+  }
+
+  // --- Driver Earnings ---
+  async createDriverEarning(earning: InsertDriverEarnings): Promise<DriverEarnings> {
+    const [row] = await db.insert(driverEarnings).values(earning).returning();
+    return row;
+  }
+
+  async getDriverEarnings(driverId: number): Promise<DriverEarnings[]> {
+    return db.select().from(driverEarnings).where(eq(driverEarnings.driverId, driverId)).orderBy(desc(driverEarnings.createdAt));
+  }
+
+  async getDriverEarningsSummary(driverId: number): Promise<{ total: number; commission: number; net: number; bonus: number; count: number }> {
+    const earnings = await this.getDriverEarnings(driverId);
+    return {
+      total: earnings.reduce((s, e) => s + e.grossAmount, 0),
+      commission: earnings.reduce((s, e) => s + e.commission, 0),
+      net: earnings.reduce((s, e) => s + e.netEarnings, 0),
+      bonus: earnings.reduce((s, e) => s + (e.bonusAmount || 0), 0),
+      count: earnings.length,
+    };
+  }
+
+  // --- Scheduled Rides ---
+  async getScheduledRides(userId: number): Promise<Ride[]> {
+    const userRides = await this.getRidesByUser(userId);
+    return userRides.filter(r => r.scheduledAt && r.status === "pending");
   }
 }
 

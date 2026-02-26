@@ -84,6 +84,7 @@ vite.config.ts.*
 # ============================================
 # All .md files stay local — not pushed to GitHub
 *.md
+!README.md
 /docs/
 FINAL_COMPLETION_REPORT.md
 COMPREHENSIVE_TEST_REPORT*

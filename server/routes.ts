@@ -464,6 +464,7 @@ export async function registerRoutes(
         cancellationProb: parseFloat(calculateCancellationProb(waitTime, surge).toFixed(2)),
         carbonEmissions: parseFloat(calculateCarbon(realDistance).toFixed(2)),
         pricingFairnessScore: parseFloat(calculateFairnessScore(surge, waitTime).toFixed(1)),
+        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       });
       
       res.status(201).json(ride);
@@ -888,6 +889,21 @@ export async function registerRoutes(
         });
       }
 
+      // Auto-create driver earnings when ride is completed
+      if (status === "completed" && driver.id) {
+        const commission = updatedRide.finalFare * 0.20; // 20% platform commission
+        const netEarnings = updatedRide.finalFare - commission;
+        const bonus = updatedRide.distanceKm > 15 ? 20 : 0; // Long-distance bonus
+        await storage.createDriverEarning({
+          driverId: driver.id,
+          rideId: updatedRide.id,
+          grossAmount: updatedRide.finalFare,
+          commission: parseFloat(commission.toFixed(2)),
+          netEarnings: parseFloat((netEarnings + bonus).toFixed(2)),
+          bonusAmount: bonus,
+        });
+      }
+
       res.json(updatedRide);
     } catch (e) {
       res.status(500).json({ message: "Failed to update ride status" });
@@ -1041,6 +1057,212 @@ export async function registerRoutes(
     } catch (e) {
       console.error("Analytics error:", e);
       res.status(500).json({ message: "Failed to load analytics" });
+    }
+  });
+
+  // ============================================
+  // RIDE SCHEDULING (book future rides)
+  // ============================================
+  app.get("/api/rides/scheduled/:userId", requireAuth, async (req, res) => {
+    try {
+      const userId = Number(req.params.userId);
+      const scheduled = await storage.getScheduledRides(userId);
+      res.json(scheduled);
+    } catch (e) {
+      console.error("Scheduled rides error:", e);
+      res.status(500).json({ message: "Failed to load scheduled rides" });
+    }
+  });
+
+  // ============================================
+  // TRIP RECEIPTS / INVOICE
+  // ============================================
+  app.get("/api/rides/:id/receipt", requireAuth, async (req, res) => {
+    try {
+      const rideId = Number(req.params.id);
+      const ride = await storage.getRide(rideId);
+      if (!ride) return res.status(404).json({ message: "Ride not found" });
+
+      // Only completed rides have receipts
+      if (ride.status !== "completed") {
+        return res.status(400).json({ message: "Receipt available only for completed rides" });
+      }
+
+      const payment = await storage.getPaymentByRide(rideId);
+      const passenger = await storage.getUser(ride.passengerId);
+      let driverName = "N/A";
+      if (ride.driverId) {
+        const driver = await storage.getUser(ride.driverId);
+        if (driver) driverName = driver.username;
+      }
+
+      // Calculate breakdown
+      const surgeAmount = ride.baseFare * ((ride.surgeMultiplier || 1) - 1);
+      const distanceCost = ride.finalFare / (ride.surgeMultiplier || 1) - ride.baseFare;
+      const gst = ride.finalFare * 0.05; // 5% GST
+      const platformFee = 15; // flat
+      const totalWithTax = ride.finalFare + gst + platformFee;
+
+      const receipt = {
+        receiptId: `SR-${ride.id}-${Date.now().toString(36).toUpperCase()}`,
+        rideId: ride.id,
+        date: ride.createdAt,
+        passengerName: passenger?.username || "Unknown",
+        driverName,
+        pickup: ride.pickupAddress,
+        drop: ride.dropAddress,
+        distanceKm: ride.distanceKm,
+        duration: ride.predictedDuration,
+        breakdown: {
+          baseFare: ride.baseFare,
+          distanceCharge: parseFloat(distanceCost.toFixed(2)),
+          surgeAmount: parseFloat(surgeAmount.toFixed(2)),
+          surgeMultiplier: ride.surgeMultiplier || 1,
+          subtotal: ride.finalFare,
+          gst: parseFloat(gst.toFixed(2)),
+          platformFee,
+          total: parseFloat(totalWithTax.toFixed(2)),
+        },
+        payment: payment ? {
+          method: payment.method,
+          status: payment.status,
+          transactionId: payment.transactionId,
+          paidAt: payment.createdAt,
+        } : null,
+        carbonSaved: ride.carbonEmissions || 0,
+        fairnessScore: ride.pricingFairnessScore || 0,
+      };
+
+      res.json(receipt);
+    } catch (e) {
+      console.error("Receipt error:", e);
+      res.status(500).json({ message: "Failed to generate receipt" });
+    }
+  });
+
+  // ============================================
+  // DRIVER EARNINGS
+  // ============================================
+  app.get("/api/driver/earnings/:driverId", requireRole("driver"), async (req, res) => {
+    try {
+      const driverId = Number(req.params.driverId);
+      const caller = (req as any).authenticatedUser;
+      if (caller.id !== driverId) {
+        return res.status(403).json({ message: "You can only view your own earnings" });
+      }
+
+      const earnings = await storage.getDriverEarnings(driverId);
+      const summary = await storage.getDriverEarningsSummary(driverId);
+      const completedRides = await storage.getRidesByDriver(driverId);
+      const completed = completedRides.filter(r => r.status === "completed");
+
+      // Daily earnings breakdown
+      const dailyMap: Record<string, number> = {};
+      earnings.forEach(e => {
+        const day = new Date(e.createdAt!).toLocaleDateString("en-IN", { weekday: "short" });
+        dailyMap[day] = (dailyMap[day] || 0) + e.netEarnings;
+      });
+
+      // Weekly trend
+      const weeklyMap: Record<string, number> = {};
+      earnings.forEach(e => {
+        const week = `Week ${Math.ceil(new Date(e.createdAt!).getDate() / 7)}`;
+        weeklyMap[week] = (weeklyMap[week] || 0) + e.netEarnings;
+      });
+
+      res.json({
+        summary: {
+          totalGross: parseFloat(summary.total.toFixed(2)),
+          totalCommission: parseFloat(summary.commission.toFixed(2)),
+          totalNet: parseFloat(summary.net.toFixed(2)),
+          totalBonus: parseFloat(summary.bonus.toFixed(2)),
+          totalRides: summary.count,
+          avgPerRide: summary.count > 0 ? parseFloat((summary.net / summary.count).toFixed(2)) : 0,
+        },
+        earnings,
+        dailyBreakdown: Object.entries(dailyMap).map(([day, amount]) => ({ day, amount: parseFloat(amount.toFixed(2)) })),
+        weeklyBreakdown: Object.entries(weeklyMap).map(([week, amount]) => ({ week, amount: parseFloat(amount.toFixed(2)) })),
+        completedRides: completed.length,
+      });
+    } catch (e) {
+      console.error("Earnings error:", e);
+      res.status(500).json({ message: "Failed to load earnings" });
+    }
+  });
+
+  // ============================================
+  // GPS SIMULATION (enhanced tracking with interpolation)
+  // ============================================
+  app.get("/api/rides/:id/gps", async (req, res) => {
+    try {
+      const ride = await storage.getRide(Number(req.params.id));
+      if (!ride) return res.status(404).json({ message: "Ride not found" });
+
+      const zones = await storage.getZones();
+      const pickupZone = zones.find(z => z.name === ride.pickupAddress);
+      const dropZone = zones.find(z => z.name === ride.dropAddress);
+
+      if (!pickupZone || !dropZone) {
+        return res.json({ coordinates: [], status: ride.status });
+      }
+
+      // Calculate elapsed time since ride status changed
+      const elapsed = (Date.now() - new Date(ride.createdAt!).getTime()) / 1000;
+      const totalDuration = (ride.predictedDuration || 30) * 60; // in seconds
+
+      let progress = 0;
+      if (ride.status === "accepted") {
+        // Driver approaching pickup — simulate 0-20% progress
+        progress = Math.min(0.2, elapsed / (totalDuration * 0.3));
+      } else if (ride.status === "in_progress") {
+        // Ride in progress — simulate 20-100%
+        progress = 0.2 + Math.min(0.8, elapsed / totalDuration * 0.8);
+      } else if (ride.status === "completed") {
+        progress = 1;
+      }
+
+      // Generate intermediate GPS points along the route with slight randomness
+      const numPoints = 20;
+      const coordinates = [];
+      for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        if (t > progress) break;
+        
+        // Linear interpolation with slight noise for realism
+        const noise = () => (Math.random() - 0.5) * 0.002;
+        coordinates.push({
+          lat: pickupZone.lat + (dropZone.lat - pickupZone.lat) * t + noise(),
+          lng: pickupZone.lng + (dropZone.lng - pickupZone.lng) * t + noise(),
+          timestamp: new Date(new Date(ride.createdAt!).getTime() + t * totalDuration * 1000).toISOString(),
+        });
+      }
+
+      // Current driver position (last point)
+      const currentPos = coordinates.length > 0 ? coordinates[coordinates.length - 1] : { lat: pickupZone.lat, lng: pickupZone.lng };
+
+      // Speed estimation
+      const distanceCovered = ride.distanceKm * progress;
+      const remainingKm = ride.distanceKm - distanceCovered;
+      const avgSpeedKmh = 25 + Math.random() * 15; // 25-40 km/h in city
+      const etaMinutes = remainingKm > 0 ? (remainingKm / avgSpeedKmh) * 60 : 0;
+
+      res.json({
+        status: ride.status,
+        progress: parseFloat(progress.toFixed(3)),
+        currentPosition: currentPos,
+        coordinates,
+        eta: parseFloat(etaMinutes.toFixed(1)),
+        speed: parseFloat(avgSpeedKmh.toFixed(1)),
+        distanceCovered: parseFloat(distanceCovered.toFixed(2)),
+        remainingKm: parseFloat(remainingKm.toFixed(2)),
+        heading: Math.atan2(
+          dropZone.lng - pickupZone.lng,
+          dropZone.lat - pickupZone.lat
+        ) * (180 / Math.PI),
+      });
+    } catch (e) {
+      console.error("GPS error:", e);
+      res.status(500).json({ message: "Failed to get GPS data" });
     }
   });
 

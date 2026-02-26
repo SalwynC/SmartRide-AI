@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { MapPin, Clock, Leaf, DollarSign, Car, ShieldCheck, Globe, LogIn, Search, History } from "lucide-react";
+import { MapPin, Clock, Leaf, DollarSign, Car, ShieldCheck, Globe, LogIn, Search, History, CalendarClock, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -22,6 +22,7 @@ import { CITY_LIST, getCityZones } from "@shared/cities";
 import AuthModal from "@/components/modals/AuthModal";
 import RideTracker from "@/components/dashboard/RideTracker";
 import RideHistory from "@/pages/RideHistory";
+import ScheduledRides from "@/components/dashboard/ScheduledRides";
 
 export default function PassengerDashboard() {
   const { toast } = useToast();
@@ -418,6 +419,61 @@ export default function PassengerDashboard() {
                     />
                   </motion.div>
 
+                  {/* Schedule Ride (Optional) */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.17, duration: 0.2 }}
+                    className="p-3 rounded-lg bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-blue-400/15"
+                  >
+                    <FormField
+                      control={form.control}
+                      name="scheduledAt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs flex items-center gap-1.5">
+                            <CalendarClock className="w-3.5 h-3.5 text-blue-400" />
+                            Schedule for Later
+                            <span className="text-[10px] text-muted-foreground ml-1">(optional)</span>
+                          </FormLabel>
+                          <FormControl>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="datetime-local"
+                                className="bg-black/20 border-blue-400/20 text-sm h-9"
+                                value={field.value ? new Date(field.value).toISOString().slice(0, 16) : ""}
+                                min={new Date().toISOString().slice(0, 16)}
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    field.onChange(new Date(e.target.value).toISOString());
+                                  } else {
+                                    field.onChange(undefined);
+                                  }
+                                }}
+                              />
+                              {field.value && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-9 w-9 p-0 text-muted-foreground hover:text-red-400"
+                                  onClick={() => field.onChange(undefined)}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </FormControl>
+                          {field.value && (
+                            <p className="text-[10px] text-blue-400 mt-1">
+                              Ride scheduled for {new Date(field.value).toLocaleString("en-IN")}
+                            </p>
+                          )}
+                        </FormItem>
+                      )}
+                    />
+                  </motion.div>
+
                   <motion.div
                     whileHover={{ scale: quoteMutation.isPending ? 1 : 1.01 }}
                     whileTap={{ scale: quoteMutation.isPending ? 1 : 0.99 }}
@@ -508,9 +564,10 @@ export default function PassengerDashboard() {
             )}
           </div>
         </motion.div>
-      </div>
 
-      {/* CENTER/RIGHT: Map & Quote */}
+        {/* Scheduled Rides */}
+        {isAuthenticated && <ScheduledRides userId={passengerId} />}
+      </div>
       <div className="lg:col-span-2 flex flex-col gap-6 relative">
         {/* India Map */}
         <div className="flex-1 rounded-3xl overflow-hidden min-h-[500px]">

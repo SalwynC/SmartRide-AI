@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useRideTracking } from "@/hooks/use-tracking";
+import { useGPSTracking } from "@/hooks/use-gps";
 import { useCancelRide } from "@/hooks/use-rides";
-import { Navigation, Phone, Star, Car, MapPin, Clock, X, MessageCircle, CreditCard, Ban, Loader2 } from "lucide-react";
+import { Navigation, Phone, Star, Car, MapPin, Clock, X, MessageCircle, CreditCard, Ban, Loader2, Gauge, Route } from "lucide-react";
 import ChatPanel from "@/components/dashboard/ChatPanel";
 import PaymentModal from "@/components/modals/PaymentModal";
 import RatingDialog from "@/components/modals/RatingDialog";
@@ -30,6 +31,7 @@ const statusSteps = [
 
 export default function RideTracker({ rideId, userId, fare, baseFare, surgeMultiplier, onClose }: RideTrackerProps) {
   const { data: tracking } = useRideTracking(rideId);
+  const { data: gps } = useGPSTracking(rideId, tracking?.status !== "completed");
   const cancelRide = useCancelRide();
   const { toast } = useToast();
   const [showPayment, setShowPayment] = useState(false);
@@ -208,12 +210,12 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
                   <line x1="21%" y1="60%" x2="76%" y2="25%" stroke="rgba(20, 184, 166, 0.4)" strokeWidth="2" strokeDasharray="6,4" />
                 </svg>
 
-                {/* Driver car */}
+                {/* Driver car — uses GPS progress when available */}
                 <motion.div
                   className="absolute z-10"
                   animate={{
-                    left: `${20 + (tracking?.progress || 0) * 55}%`,
-                    top: `${60 - (tracking?.progress || 0) * 35}%`,
+                    left: `${20 + (gps?.progress ?? tracking?.progress ?? 0) * 55}%`,
+                    top: `${60 - (gps?.progress ?? tracking?.progress ?? 0) * 35}%`,
                   }}
                   transition={{ duration: 2, ease: "easeInOut" }}
                 >
@@ -222,23 +224,70 @@ export default function RideTracker({ rideId, userId, fare, baseFare, surgeMulti
                     transition={{ duration: 1.5, repeat: Infinity }}
                     className="relative"
                   >
-                    <div className="w-10 h-10 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center gps-pulse">
                       <Car className="w-5 h-5 text-black" />
                     </div>
                     <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 animate-ping" />
                   </motion.div>
                 </motion.div>
 
-                {/* ETA overlay */}
-                {tracking?.eta !== null && tracking?.eta !== undefined && (
-                  <div className="absolute top-4 right-4 bg-black/70 backdrop-blur px-4 py-2 rounded-xl border border-white/10">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-primary" />
-                      <div>
-                        <span className="text-xs text-muted-foreground">ETA</span>
-                        <p className="text-lg font-bold text-white">{tracking.eta} min</p>
-                      </div>
+                {/* GPS path dots (breadcrumb trail) */}
+                {gps?.coordinates && gps.coordinates.length > 1 && (
+                  <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 2 }}>
+                    {gps.coordinates.map((coord, i) => {
+                      const t = i / (gps.coordinates.length - 1 || 1);
+                      const cx = 20 + t * 55;
+                      const cy = 60 - t * 35;
+                      return (
+                        <circle
+                          key={i}
+                          cx={`${cx}%`}
+                          cy={`${cy}%`}
+                          r="2"
+                          fill="rgba(20, 184, 166, 0.6)"
+                        />
+                      );
+                    })}
+                  </svg>
+                )}
+
+                {/* Enhanced GPS info overlay */}
+                <div className="absolute top-4 right-4 bg-black/70 backdrop-blur px-4 py-2 rounded-xl border border-white/10 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">ETA</span>
+                      <p className="text-base font-bold text-white tabular-nums">{gps?.eta?.toFixed(0) ?? tracking?.eta ?? "—"} min</p>
                     </div>
+                  </div>
+                  {gps && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Gauge className="w-3.5 h-3.5 text-blue-400" />
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Speed</span>
+                          <p className="text-xs font-semibold text-white tabular-nums">{gps.speed} km/h</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Route className="w-3.5 h-3.5 text-purple-400" />
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Covered</span>
+                          <p className="text-xs font-semibold text-white tabular-nums">{gps.distanceCovered} / {(gps.distanceCovered + gps.remainingKm).toFixed(1)} km</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Progress bar at bottom of map */}
+                {gps && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/40">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-primary to-emerald-400"
+                      animate={{ width: `${(gps.progress * 100).toFixed(0)}%` }}
+                      transition={{ duration: 1 }}
+                    />
                   </div>
                 )}
               </div>

@@ -151,3 +151,87 @@
 .animate-float {
   animation: float 4s ease-in-out infinite;
 }
+
+/* Shimmer effect for premium elements */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.08) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Smooth page entrance */
+@keyframes page-in {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-page-in {
+  animation: page-in 0.3s ease-out;
+}
+
+/* Datetime input styling for dark mode */
+input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+.light input[type="datetime-local"] {
+  color-scheme: light;
+}
+
+/* Stat card glow effect */
+.stat-glow {
+  position: relative;
+}
+.stat-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  box-shadow: 0 0 30px rgba(20, 184, 166, 0.15);
+}
+.stat-glow:hover::after {
+  opacity: 1;
+}
+
+/* GPS pulse indicator */
+@keyframes gps-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(20, 184, 166, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+}
+.gps-pulse {
+  animation: gps-pulse 2s ease-out infinite;
+}
+
+/* Smooth number counter */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Receipt paper effect */
+.receipt-paper {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 28px,
+    rgba(255, 255, 255, 0.02) 28px,
+    rgba(255, 255, 255, 0.02) 29px
+  );
+}
+
+.light .receipt-paper {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 28px,
+    rgba(0, 0, 0, 0.02) 28px,
+    rgba(0, 0, 0, 0.02) 29px
+  );
+}

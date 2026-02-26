@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, TrendingUp, DollarSign, CheckCircle, Navigation, Clock, Star, Car, ArrowUpRight } from "lucide-react";
+import { MapPin, TrendingUp, DollarSign, CheckCircle, Navigation, Clock, Star, Car, ArrowUpRight, Wallet } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from "recharts";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { IndiaMap } from "@/components/maps/DelhiMap";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import DriverEarningsPanel from "@/components/dashboard/DriverEarningsPanel";
 
 export default function DriverDashboard() {
   const { user } = useAuth();
@@ -279,34 +280,8 @@ export default function DriverDashboard() {
           </div>
         </div>
 
-        <Card className="glass-panel border-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Earnings Trend</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={completedRides.length > 0
-                  ? completedRides.slice(0, 6).reverse().map((r) => ({ ride: `#${r.id}`, value: r.finalFare }))
-                  : [{ ride: "—", value: 0 }]}
-                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="earningsFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  formatter={(v: number) => [`₹${v.toFixed(0)}`, "Earned"]}
-                />
-                <Area type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={2.5} fill="url(#earningsFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* Driver Earnings Panel */}
+        {driverId && <DriverEarningsPanel driverId={driverId} />}
       </div>
     </div>
   );

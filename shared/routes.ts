@@ -55,6 +55,7 @@ export const bookingRequestSchema = z.object({
   passengerId: z.number(),
   simulatedTraffic: z.number().min(0).max(10).optional(),
   simulatedPeak: z.boolean().optional(),
+  scheduledAt: z.string().datetime().optional(),
 });
 
 export type BookingRequest = z.infer<typeof bookingRequestSchema>;

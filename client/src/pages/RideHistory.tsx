@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { useAnalytics } from "@/hooks/use-tracking";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from "recharts";
 import { ArrowLeft, TrendingUp, MapPin, Leaf, DollarSign, Car, Clock, Receipt } from "lucide-react";
 import RatingDialog from "@/components/modals/RatingDialog";
+import TripReceipt from "@/components/dashboard/TripReceipt";
 
 interface RideHistoryProps {
   userId: number;
@@ -16,6 +17,7 @@ interface RideHistoryProps {
 export default function RideHistory({ userId, onBack }: RideHistoryProps) {
   const { data: analytics, isLoading } = useAnalytics(userId);
   const [ratingRideId, setRatingRideId] = useState<number | null>(null);
+  const [receiptRideId, setReceiptRideId] = useState<number | null>(null);
 
   if (isLoading) {
     return (
@@ -187,9 +189,14 @@ export default function RideHistory({ userId, onBack }: RideHistoryProps) {
                         <Badge className={`text-[10px] ${statusColor(ride.status)}`}>{ride.status}</Badge>
                       </div>
                       {ride.status === "completed" && (
-                        <Button size="sm" variant="ghost" onClick={() => setRatingRideId(ride.id)} className="text-xs">
-                          Rate
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setReceiptRideId(ride.id)} className="text-xs gap-1">
+                            <Receipt className="w-3 h-3" /> Receipt
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setRatingRideId(ride.id)} className="text-xs">
+                            Rate
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </motion.div>
@@ -207,6 +214,16 @@ export default function RideHistory({ userId, onBack }: RideHistoryProps) {
         rideId={ratingRideId || 0}
         passengerId={userId}
       />
+
+      {/* Trip Receipt Modal */}
+      <AnimatePresence>
+        {receiptRideId && (
+          <TripReceipt
+            rideId={receiptRideId}
+            onClose={() => setReceiptRideId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

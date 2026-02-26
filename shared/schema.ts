@@ -55,6 +55,7 @@ export const rides = pgTable("rides", {
   pricingFairnessScore: real("pricing_fairness_score"), // 0-10
   
   status: text("status", { enum: ["pending", "accepted", "in_progress", "completed", "cancelled"] }).default("pending"),
+  scheduledAt: timestamp("scheduled_at"),  // null = immediate, set = future scheduled ride
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -91,6 +92,18 @@ export const payments = pgTable("payments", {
   status: text("status", { enum: ["pending", "completed", "failed", "refunded"] }).default("pending"),
   transactionId: text("transaction_id"),
   breakdown: jsonb("breakdown"), // { baseFare, surgeAmount, tax, discount, total }
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// === DRIVER EARNINGS TABLE ===
+export const driverEarnings = pgTable("driver_earnings", {
+  id: serial("id").primaryKey(),
+  driverId: integer("driver_id").notNull(),
+  rideId: integer("ride_id").notNull(),
+  grossAmount: real("gross_amount").notNull(),
+  commission: real("commission").notNull(), // Platform commission (20%)
+  netEarnings: real("net_earnings").notNull(),
+  bonusAmount: real("bonus_amount").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -145,6 +158,7 @@ export const insertRatingSchema = createInsertSchema(ratings).omit({ id: true, c
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, status: true, transactionId: true });
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true });
+export const insertDriverEarningsSchema = createInsertSchema(driverEarnings).omit({ id: true, createdAt: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 
@@ -177,6 +191,10 @@ export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 
+// Driver Earnings types
+export type DriverEarnings = typeof driverEarnings.$inferSelect;
+export type InsertDriverEarnings = z.infer<typeof insertDriverEarningsSchema>;
+
 // Booking Request (Input from frontend form)
 export const bookingRequestSchema = z.object({
   pickupAddress: z.string().min(1, "Pickup address is required"),
@@ -186,6 +204,8 @@ export const bookingRequestSchema = z.object({
   // Optional overrides for simulation
   simulatedTraffic: z.number().min(0).max(10).optional(),
   simulatedPeak: z.boolean().optional(),
+  // Scheduled ride (optional — ISO string for future rides)
+  scheduledAt: z.string().datetime().optional(),
 });
 export type BookingRequest = z.infer<typeof bookingRequestSchema>;
 
