@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bookingRequestSchema } from "@shared/routes";
+import { bookingRequestSchema } from "../routes";
 
 describe("Booking Request Validation", () => {
   it("accepts valid booking data", () => {
